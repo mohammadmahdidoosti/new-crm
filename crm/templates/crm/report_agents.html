@@ -1,0 +1,6 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}<div class="top"><h1>کارنامه کارشناسان — {{ days|fanum }} روز اخیر</h1>
+<span class="filters" style="margin:0"><a href="?days=7">۷ روز</a><a href="?days=30">۳۰ روز</a><a href="?days=90">۹۰ روز</a></span></div>
+<div class="tbl"><table><tr><th>کارشناس</th><th>تعداد تماس</th><th>هفت‌گانه</th><th>لحن</th><th>مشاوره</th>{% for i in items %}<th class="small">{{ i }}</th>{% endfor %}</tr>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ r.n|fanum }}</td><td>{{ r.checklist|floatformat:0|fanum }}٪</td><td>{{ r.tone|floatformat:1|fanum }}</td><td>{{ r.advice|floatformat:1|fanum }}</td>
+{% for p in r.per %}<td>{{ p|fanum }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="5" class="muted">هنوز مکالمه‌ی تحلیل‌شده‌ای نیست.</td></tr>{% endfor %}</table></div>{% endblock %}

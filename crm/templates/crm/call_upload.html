@@ -1,0 +1,13 @@
+{% extends "crm/base.html" %}
+{% block content %}
+<div class="top"><h1>آپلود وویس</h1></div>
+<div class="card form" style="max-width:720px">
+<p class="muted">می‌توانید چند فایل هم‌نوع را با هم انتخاب کنید. هر فایل جداگانه به متن تبدیل و تحلیل می‌شود (معمولاً کمتر از یک دقیقه).
+موبایل مشتری یا متخصص را بنویسید تا نتیجه به پرونده‌ی درست وصل شود؛ بعداً هم در صفحه‌ی مکالمه قابل اصلاح است.</p>
+<form method="post" enctype="multipart/form-data">{% csrf_token %}
+<div class="row"><div>{{ form.kind.label_tag }}{{ form.kind }}</div><div>{{ form.files.label_tag }}{{ form.files }}{{ form.files.errors }}</div></div>
+<div class="row"><div>{{ form.customer_phone.label_tag }}{{ form.customer_phone }}</div><div>{{ form.specialist_phone.label_tag }}{{ form.specialist_phone }}</div>
+<div>{{ form.order_code.label_tag }}{{ form.order_code }}</div></div>
+{{ form.note.label_tag }}{{ form.note }}
+<p style="margin-top:12px"><button class="btn">ارسال برای تحلیل</button></p></form></div>
+{% endblock %}

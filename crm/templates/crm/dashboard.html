@@ -1,0 +1,24 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>داشبورد</h1></div>
+<div class="grid g4">
+  <a class="stat {% if unassigned %}alert{% endif %}" href="{% url 'dispatch' %}"><b>{{ unassigned|fanum }}</b><span>سفارش بدون نیرو</span></a>
+  <a class="stat" href="{% url 'call_list' %}?status=done"><b>{{ calls_to_review|fanum }}</b><span>مکالمه آماده بررسی</span></a>
+  <a class="stat {% if draft_surveys %}alert{% endif %}" href="{% url 'survey_list' %}?draft=1"><b>{{ draft_surveys|fanum }}</b><span>نظرسنجی منتظر تأیید</span></a>
+  <a class="stat" href="{% url 'complaint_list' %}"><b>{{ open_complaints|fanum }}</b><span>شکایت باز از متخصص</span></a>
+  <a class="stat {% if overdue_tickets %}alert{% endif %}" href="{% url 'ticket_list' %}"><b>{{ open_tickets|fanum }}</b><span>تیکت باز ({{ overdue_tickets|fanum }} دیرکرد)</span></a>
+  <a class="stat" href="{% url 'pro_complaint_list' %}"><b>{{ open_pro_complaints|fanum }}</b><span>شکایت باز متخصصان</span></a>
+  <a class="stat" href="{% url 'call_list' %}"><b>{{ calls_queue|fanum }}</b><span>وویس در صف پردازش</span></a>
+  <a class="stat {% if calls_failed %}alert{% endif %}" href="{% url 'call_list' %}?status=failed"><b>{{ calls_failed|fanum }}</b><span>وویس با خطا</span></a>
+</div>
+<div class="grid g2" style="margin-top:16px">
+<div class="card"><h2>ظرفیت امروز و فردا</h2>
+{% include "crm/_capacity.html" with cap=capacity_today %}
+{% include "crm/_capacity.html" with cap=capacity_tomorrow %}
+<a href="{% url 'report_capacity' %}">ظرفیت ۷ روز آینده</a></div>
+<div class="card"><h2>کارهای پیگیری</h2>
+{% for t in my_tasks %}<div class="sugg"><span>{{ t.title }}{% if t.due %} <span class="muted small">— مهلت {{ t.due|jdt }}</span>{% endif %}</span>
+{% if t.complaint %}<a href="{% url 'complaint_detail' t.complaint.pk %}">شکایت</a>{% endif %}</div>
+{% empty %}<p class="muted">کاری نیست.</p>{% endfor %}<a href="{% url 'task_list' %}">همه کارها</a></div>
+</div>
+{% endblock %}

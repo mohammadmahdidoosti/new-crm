@@ -1,0 +1,4 @@
+{% extends "crm/base.html" %}
+{% block content %}<div class="top"><h1>ظرفیت متخصصین — ۷ روز آینده</h1></div>
+<p class="muted">از روی «وضعیت روزانه متخصصین» (آماده به کار، مرخصی، روز غیرکاری، تعلیق) و سفارش‌های همان روز. هشدار «نیازمند نیرو» یعنی ساعت آزاد باقیمانده از حد تعیین‌شده کمتر است.</p>
+<div class="grid g2">{% for cap in days %}<div class="card">{% include "crm/_capacity.html" %}</div>{% endfor %}</div>{% endblock %}

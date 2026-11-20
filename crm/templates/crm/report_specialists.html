@@ -1,0 +1,6 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}<div class="top"><h1>کارنامه متخصصین فعال — {{ days|fanum }} روز اخیر</h1></div>
+<div class="tbl"><table><tr><th>متخصص</th><th>نوع</th><th>امتیاز</th><th>تعداد نظرسنجی</th><th>میانگین نظرسنجی</th><th>شکایت</th></tr>
+{% for s in rows %}<tr><td>{{ s.name }}</td><td>{{ s.get_worker_type_display }}</td><td>{{ s.score|stars }}</td><td>{{ s.n_surveys|fanum }}</td>
+<td><span class="score {% if s.avg_survey != None and s.avg_survey < 4 %}lo{% endif %}">{{ s.avg_survey|stars }}</span></td><td><span class="score {% if s.n_complaints > 1 %}lo{% endif %}">{{ s.n_complaints|fanum }}</span></td></tr>
+{% endfor %}</table></div>{% endblock %}

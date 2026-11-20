@@ -1,0 +1,48 @@
+"""Create default rules, lists and service types (idempotent). Defaults are placeholders to confirm with the team."""
+from django.core.management.base import BaseCommand
+
+from crm.models import CannedResponse, ChecklistItem, Rules, ServiceType
+
+CALL = [
+    ("سلام، معرفی خود و شرکت", "کارشناس در ابتدای تماس سلام می‌کند و خود و سرویک را معرفی می‌کند."),
+    ("ثبت دقیق اطلاعات مشتری", "نام، شماره تماس و آدرس را می‌پرسد یا تأیید می‌کند."),
+    ("نیازسنجی کامل", "نوع خدمت، متراژ/ساعت، حیوان خانگی، ترجیح جنسیت نیرو و نکات خاص را می‌پرسد."),
+    ("اعلام شفاف قیمت و شرایط", "قیمت، مدت، شرایط لغو، تجدید نظافت و اینکه وسایل نظافت با مشتری است را روشن می‌گوید."),
+    ("مشاوره و پیشنهاد مناسب", "بر اساس نیاز مشتری خدمت، ساعت یا نیروی مناسب (VIP، نیروی مورد علاقه) را پیشنهاد می‌دهد."),
+    ("تکرار و تأیید نهایی", "در پایان تاریخ، ساعت، آدرس و خدمت را تکرار و تأیید می‌کند."),
+    ("پایان محترمانه", "می‌پرسد سؤال دیگری هست یا نه و محترمانه خداحافظی می‌کند."),
+]
+FAULTS = ["کیفیت پایین (متخصص)", "رفتار نامناسب (متخصص)", "تأخیر (متخصص)", "تعجیل (متخصص)", "سرعت عمل پایین(متخصص)",
+          "آراستگی ظاهری (متخصص)", "غیبت (متخصص)"]
+PRO = ["رفتار نامناسب (مشتری)", "عدم وسایل نظافتی مناسب (مشتری)", "ثبت اشتباه سفارش (عملیات)", "عدم حضور (مشتری)",
+       "عدم پرداخت هزینه (مشتری)", "مشکلات شخصی متخصصین", "اضافه کار اجباری (مشتری)", "عدم پاسخگویی و حل مشکل (عملیات)",
+       "رفتار نامناسب (عملیات)"]
+SURVEY = ["نظافت نیرو", "سرعت عمل", "کیفیت کار", "ادب و رفتار نیرو", "روند ثبت سفارش و پاسخگویی", "امتیاز کارشناس به نیرو",
+          "پوشش متخصص"]
+SERVICES = [("نظافت منزل", "home", False), ("نظافت ویژه منزل (VIP)", "home", True), ("نظافت محل کار", "work", False),
+            ("نظافت ویژه محل کار (VIP)", "work", True), ("نظافت محل کار (فاکتور رسمی)", "work", False),
+            ("مشاعات ساعتی (راه پله)", "common", False), ("نظافت ویژه مشاعات ساعتی (VIP)", "common", True),
+            ("اعزام نیروی اثاث کش", "other", False), ("پذیرایی و اعزام مهمان دار", "other", False)]
+
+
+class Command(BaseCommand):
+    help = "Seed default rules and lists"
+
+    def handle(self, *args, **opts):
+        Rules.get()
+        n = 0
+        for kind, items in ((ChecklistItem.CALL, CALL), (ChecklistItem.FAULT, [(t, "") for t in FAULTS]),
+                            (ChecklistItem.PRO_COMPLAINT, [(t, "") for t in PRO]), (ChecklistItem.SURVEY, [(t, "") for t in SURVEY])):
+            if ChecklistItem.objects.filter(kind=kind).exists():
+                continue
+            for i, (title, guide) in enumerate(items):
+                ChecklistItem.objects.create(kind=kind, title=title, guide=guide, order=i)
+                n += 1
+        for name, cat, vip in SERVICES:
+            ServiceType.objects.get_or_create(name=name, defaults={"category": cat, "is_vip": vip})
+        if not CannedResponse.objects.exists():
+            CannedResponse.objects.create(category="امور پشتیبانی و پخش کار", title="نمونه: درخواست کار",
+                                          text="سلام، درخواستتان ثبت شد. به محض وجود کار مناسب در محدوده‌ی شما، در اپلیکیشن برایتان ارسال می‌شود.")
+            CannedResponse.objects.create(category="پشتیبانی اپلیکیشن", title="نمونه: ثبت شروع و پایان کار",
+                                          text="سلام، برای ثبت شروع و پایان کار، وارد بخش «کارهای من» شوید و روی سفارش امروز دکمه‌ی شروع/پایان را بزنید.")
+        self.stdout.write(self.style.SUCCESS(f"defaults ready ({n} list items added)"))

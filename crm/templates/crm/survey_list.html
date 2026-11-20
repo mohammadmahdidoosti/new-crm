@@ -1,0 +1,10 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>نظرسنجی‌ها</h1><a class="btn" href="{% url 'survey_new' %}">ثبت نظرسنجی</a></div>
+<div class="filters"><a href="?" class="{% if not request.GET.draft and not request.GET.low %}on{% endif %}">همه</a><a href="?draft=1" class="{% if request.GET.draft %}on{% endif %}">منتظر تأیید</a><a href="?low=1" class="{% if request.GET.low %}on{% endif %}">نمره پایین</a></div>
+<div class="tbl"><table><tr><th>تاریخ تماس</th><th>مشتری</th><th>متخصص</th><th>خدمت</th><th>میانگین</th><th>نتیجه</th><th>کارشناس</th><th>وضعیت</th></tr>
+{% for s in page %}<tr><td>{{ s.call_date|jdate }}</td><td>{{ s.customer.name|default:"-" }}</td><td>{{ s.specialist|default:"-" }}</td><td>{{ s.service_name }}</td>
+<td><span class="score {% if s.average != None and s.average < 4 %}lo{% endif %}">{{ s.average|stars }}</span></td><td>{{ s.get_result_display }}</td><td>{{ s.agent|default:"-" }}</td>
+<td>{% if not s.confirmed %}<a class="tag warn" href="{% url 'call_detail' s.call_id %}">تأیید کنید</a>{% elif s.complaint %}<a class="tag bad" href="{% url 'complaint_detail' s.complaint.pk %}">شکایت</a>{% else %}<span class="tag ok">ثبت شد</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="8" class="muted">موردی نیست.</td></tr>{% endfor %}</table></div>{% include "crm/_pager.html" %}
+{% endblock %}

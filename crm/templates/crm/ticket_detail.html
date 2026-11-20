@@ -1,0 +1,17 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>{{ t.title }}</h1><span><span class="tag">{{ t.get_category_display }}</span> <span class="tag {% if t.is_overdue %}bad{% endif %}">{{ t.get_status_display }}</span></span></div>
+<div class="grid g2"><div class="card"><h2>گفتگو با {{ t.specialist|default:"متخصص" }}</h2>
+{% for m in t.messages.all %}<div class="card" style="background:{% if m.from_staff %}#eef3ff{% else %}#fafbf9{% endif %}">
+<b>{% if m.from_staff %}{{ m.author|default:"کارشناس" }}{% else %}متخصص{% endif %}</b> <span class="muted small">{{ m.created_at|jdt }}</span><pre>{{ m.text }}</pre>
+{% if m.tone_flag %}<p class="score lo small">هشدار لحن: {{ m.tone_flag }}</p>{% endif %}</div>{% endfor %}
+<form method="post" class="form">{% csrf_token %}<input type="hidden" name="action" value="pro_message"><label>ثبت پیام جدید متخصص</label><textarea name="text" rows="2"></textarea><button class="btn sec sm">ثبت پیام متخصص</button></form>
+</div>
+<div class="card form"><h2>پاسخ</h2>
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="draft"><button class="btn sec">پیش‌نویس با هوش مصنوعی</button></form>
+<form method="post">{% csrf_token %}
+<label>پاسخ آماده</label><select onchange="if(this.value){document.getElementById('reply').value=this.value}"><option value="">انتخاب کنید…</option>{% for c in canned %}<option value="{{ c.text }}">{{ c.title }}</option>{% endfor %}</select>
+<label>متن پاسخ</label><textarea id="reply" name="text" rows="7">{{ draft }}</textarea>
+<p class="muted small">قبل از ثبت، لحن پاسخ خودکار بررسی می‌شود.</p>
+<button class="btn" name="action" value="reply">ثبت پاسخ</button> <button class="btn ok" name="action" value="reply_close">ثبت و بستن تیکت</button></form></div></div>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>شکایات متخصصان</h1><a class="btn" href="{% url 'call_upload' %}?kind=pro_complaint">آپلود وویس شکایت متخصص</a></div>
+<div class="filters"><a href="?status=active" class="{% if request.GET.status != 'all' %}on{% endif %}">باز</a><a href="?status=all" class="{% if request.GET.status == 'all' %}on{% endif %}">همه</a></div>
+{% for c in page %}<div class="card"><div class="top" style="margin:0"><h3>{{ c.specialist|default:"-" }} — {{ c.reason_text }}</h3><span class="muted small">{{ c.created_at|jdate }}{% if not c.confirmed %} <a class="tag warn" href="{% url 'call_detail' c.call_id %}">منتظر تأیید</a>{% endif %}</span></div>
+<p>{{ c.description|linebreaksbr }}</p>
+<form method="post" class="row">{% csrf_token %}<input type="hidden" name="id" value="{{ c.pk }}">
+<div><select name="status">{% for k,l in statuses %}<option value="{{k}}" {% if c.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+<div style="flex:3"><input name="resolution" value="{{ c.resolution }}" placeholder="نتیجه پیگیری"></div><button class="btn sm">ذخیره</button></form></div>
+{% empty %}<div class="card muted">موردی نیست.</div>{% endfor %}{% include "crm/_pager.html" %}
+{% endblock %}

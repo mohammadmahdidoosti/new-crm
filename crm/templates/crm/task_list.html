@@ -1,0 +1,6 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}<div class="top"><h1>کارهای پیگیری</h1><span class="filters" style="margin:0"><a href="?">همه</a><a href="?mine=1">کارهای من</a></span></div>
+<div class="tbl"><table><tr><th>کار</th><th>مشتری</th><th>متخصص</th><th>مهلت</th><th></th></tr>
+{% for t in page %}<tr><td>{{ t.title }}<div class="muted small">{{ t.details }}</div></td><td>{{ t.customer.name|default:"-" }} <span class="muted small">{{ t.customer.phone|default:"" }}</span></td><td>{{ t.specialist|default:"-" }}</td><td>{{ t.due|jdt }}</td>
+<td>{% if t.complaint %}<a href="{% url 'complaint_detail' t.complaint.pk %}">شکایت</a> {% endif %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ t.pk }}"><button class="btn ok sm">انجام شد</button></form></td></tr>
+{% empty %}<tr><td colspan="5" class="muted">کاری نیست.</td></tr>{% endfor %}</table></div>{% include "crm/_pager.html" %}{% endblock %}

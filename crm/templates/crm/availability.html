@@ -1,0 +1,9 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}<div class="top"><h1>وضعیت اشتغال متخصصین — {{ date|jdate }}</h1>
+<span><a class="btn sec sm" href="?date={{ prev }}">روز قبل</a> <a class="btn sec sm" href="?date={{ next }}">روز بعد</a></span></div>
+<form method="post">{% csrf_token %}<input type="hidden" name="date" value="{{ date|jdate }}">
+<div class="tbl"><table><tr><th>متخصص</th><th>جنسیت</th><th>نوع</th><th>امتیاز</th><th>وضعیت امروز</th></tr>
+{% for sp, st in rows %}<tr><td>{{ sp.name }}</td><td>{{ sp.get_gender_display }}</td><td>{{ sp.get_worker_type_display }}</td><td>{{ sp.score|stars }}</td>
+<td><select name="s_{{ sp.pk }}"><option value="">نامشخص</option>{% for k,l in states %}<option value="{{k}}" {% if st == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td></tr>
+{% empty %}<tr><td colspan="5" class="muted">متخصص فعالی ثبت نشده — از «ورود داده از اکسل» وارد کنید.</td></tr>{% endfor %}</table></div>
+<p style="margin-top:10px"><button class="btn">ذخیره</button></p></form>{% endblock %}

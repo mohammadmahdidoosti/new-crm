@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.sqlite3
+media/
+staticfiles/
+.env
+.env.*
+!.env.example
+# Never commit company data
+*.xlsx
+*.xls
+*.csv
+*.mp3
+*.ogg
+*.m4a
+*.wav
+*.amr

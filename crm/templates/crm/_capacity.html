@@ -1,0 +1,6 @@
+{% load fa %}<h3>{{ cap.date|jdate }} {% if not cap.has_data %}<span class="tag">اشتغال این روز ثبت نشده — <a href="{% url 'availability' %}?date={{ cap.date|jdate }}">ثبت</a></span>{% elif cap.shortage %}<span class="tag bad">نیازمند نیرو</span>{% else %}<span class="tag ok">ظرفیت کافی</span>{% endif %}
+<span class="muted small">{{ cap.unassigned|fanum }} سفارش بدون نیرو</span></h3>
+<table><tr><th>جنسیت</th><th>نیروی آماده</th><th>ساعت آزاد</th><th>VIP آزاد</th><th>رزرو شده</th><th>در انتظار نیرو</th><th>باقیمانده</th></tr>
+{% for g in cap.groups %}<tr><td>{{ g.gender }}</td><td>{{ g.ready|fanum }}</td><td>{{ g.free_hours|fanum }}</td><td>{{ g.vip_free_hours|fanum }}</td>
+<td>{{ g.booked_hours|floatformat:0|fanum }}</td><td>{{ g.pending_hours|floatformat:0|fanum }}</td>
+<td><span class="score {% if g.short %}lo{% else %}hi{% endif %}">{{ g.remaining|floatformat:0|fanum }}</span></td></tr>{% endfor %}</table>

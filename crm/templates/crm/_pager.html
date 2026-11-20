@@ -1,0 +1,5 @@
+{% load fa %}{% if page.paginator.num_pages > 1 %}<div class="pager">
+{% if page.has_previous %}<a class="btn sec sm" href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{k}}={{v}}&{% endif %}{% endfor %}page={{ page.previous_page_number }}">قبلی</a>{% endif %}
+<span class="muted">صفحه {{ page.number|fanum }} از {{ page.paginator.num_pages|fanum }} ({{ page.paginator.count|fanum }} مورد)</span>
+{% if page.has_next %}<a class="btn sec sm" href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{k}}={{v}}&{% endif %}{% endfor %}page={{ page.next_page_number }}">بعدی</a>{% endif %}
+</div>{% endif %}

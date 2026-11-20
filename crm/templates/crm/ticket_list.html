@@ -1,0 +1,9 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>تیکت‌های متخصصین</h1><a class="btn" href="{% url 'ticket_new' %}">ثبت تیکت</a></div>
+<div class="filters"><a href="?status=open" class="{% if status == 'open' %}on{% endif %}">باز</a><a href="?status=waiting_staff" class="{% if status == 'waiting_staff' %}on{% endif %}">منتظر کارشناس</a><a href="?status=closed" class="{% if status == 'closed' %}on{% endif %}">بسته</a><a href="?status=" class="{% if not status %}on{% endif %}">همه</a></div>
+<div class="tbl"><table><tr><th>ثبت</th><th>متخصص</th><th>دسته</th><th>عنوان</th><th>وضعیت</th><th>اولین پاسخ</th></tr>
+{% for t in page %}<tr><td>{{ t.created_at|jdt }}</td><td>{{ t.specialist|default:"-" }}</td><td>{{ t.get_category_display }}</td><td><a href="{% url 'ticket_detail' t.pk %}">{{ t.title }}</a></td>
+<td><span class="tag {% if t.status == 'closed' %}ok{% elif t.is_overdue %}bad{% else %}warn{% endif %}">{{ t.get_status_display }}{% if t.is_overdue %} — دیرکرد{% endif %}</span></td><td>{{ t.first_response_at|jdt }}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted">تیکتی نیست.</td></tr>{% endfor %}</table></div>{% include "crm/_pager.html" %}
+{% endblock %}

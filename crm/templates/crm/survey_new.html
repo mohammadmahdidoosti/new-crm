@@ -1,0 +1,8 @@
+{% extends "crm/base.html" %}
+{% block content %}
+<div class="top"><h1>ثبت دستی نظرسنجی</h1><a class="btn sec" href="{% url 'call_upload' %}?kind=survey">یا وویس نظرسنجی را آپلود کنید</a></div>
+<div class="card form" style="max-width:820px"><form method="post">{% csrf_token %}
+<div class="row">{% for f in head %}<div>{{ f.label_tag }}{{ f }}{{ f.errors }}</div>{% endfor %}</div>
+<h3 style="margin-top:14px">نمره‌ها (۱ تا ۵)</h3><div class="grid g4">{% for f in form %}<div>{{ f.label_tag }}{{ f }}</div>{% endfor %}</div>
+<p style="margin-top:12px"><button class="btn">ثبت</button></p></form></div>
+{% endblock %}

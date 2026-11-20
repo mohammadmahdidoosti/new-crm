@@ -1,0 +1,81 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>{{ call.get_kind_display }} #{{ call.pk|fanum }}</h1>
+<span><span class="tag {% if call.status == 'failed' %}bad{% elif call.status == 'reviewed' %}ok{% else %}warn{% endif %}">{{ call.get_status_display }}</span>
+<span class="muted small">{{ call.created_at|jdt }} — {{ call.agent|default:"" }}</span></span></div>
+
+{% if call.status == 'failed' or call.error %}<div class="msg error">خطا: {{ call.error }}
+<form method="post" action="{% url 'call_action' call.pk %}" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="retry"><button class="btn sm">تلاش دوباره</button></form></div>{% endif %}
+{% if call.status == 'queued' or call.status == 'transcribing' or call.status == 'analyzing' %}<div class="msg">در حال پردازش… چند لحظه بعد صفحه را تازه کنید.</div>{% endif %}
+
+<div class="grid g2">
+<div>
+  <div class="card"><h2>پرونده</h2>
+  <form method="post" action="{% url 'call_action' call.pk %}" class="form">{% csrf_token %}<input type="hidden" name="action" value="link">
+  <div class="row"><div><label>موبایل مشتری</label><input name="customer_phone" value="{{ call.customer.phone|default:'' }}"></div>
+  <div><label>نام مشتری (اگر جدید است)</label><input name="customer_name" value="{{ call.customer.name|default:'' }}"></div></div>
+  <div class="row"><div><label>متخصص</label><select name="specialist"><option value="">-</option>{% for s in specialists %}<option value="{{ s.pk }}" {% if call.specialist_id == s.pk %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+  <div><label>کد پیگیری سفارش</label><input name="order_code" value="{{ call.order.tracking_code|default:'' }}"></div><button class="btn sec">ذخیره</button></div></form>
+  {% if call.related_complaint %}<p>مربوط به <a href="{% url 'complaint_detail' call.related_complaint.pk %}">شکایت از {{ call.related_complaint.specialist }}</a></p>{% endif %}
+  {% if call.audio %}<audio controls preload="none" src="{% url 'call_audio' call.pk %}" style="width:100%;margin-top:8px"></audio>{% endif %}
+  {% if call.note %}<p class="muted">یادداشت: {{ call.note }}</p>{% endif %}
+  </div>
+
+  {% if a %}
+  <div class="card"><h2>خلاصه</h2><p>{{ a.summary }}</p>
+  {% if a.suggested_actions %}<h3>اقدام پیشنهادی</h3><ul>{% for x in a.suggested_actions %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+  {% if call.kind == 'order' or call.kind == 'new_customer' %}<a class="btn" href="{% url 'order_new' %}?call={{ call.pk }}">ثبت سفارش با اطلاعات این تماس</a>{% endif %}
+  </div>
+
+  <div class="card"><h2>ارزیابی کارشناس</h2>
+  <div class="grid g3"><div class="stat"><b>{% if call.checklist_score != None %}{{ call.checklist_score|floatformat:0|fanum }}٪{% else %}-{% endif %}</b><span>موارد هفت‌گانه</span></div>
+  <div class="stat"><b>{{ call.tone_score|fanum|default:"-" }}</b><span>لحن (از ۵)</span></div>
+  <div class="stat"><b>{{ call.advice_score|fanum|default:"-" }}</b><span>مشاوره (از ۵)</span></div></div>
+  <table style="margin-top:10px"><tr><th>مورد</th><th>وضعیت</th><th>شاهد / توضیح</th></tr>
+  {% for it in a.checklist %}<tr><td>{{ it.item }}</td><td>{% if it.done == True %}<span class="tag ok">رعایت شد</span>{% elif it.done == False %}<span class="tag bad">رعایت نشد</span>{% else %}<span class="tag">موضوعیت ندارد</span>{% endif %}</td>
+  <td class="small">{% if it.evidence %}«{{ it.evidence }}»{% endif %} {{ it.note }}</td></tr>{% endfor %}</table>
+  {% if a.tone %}<p><b>لحن:</b> {{ a.tone.note }}</p>{% if a.tone.issues %}<ul>{% for i in a.tone.issues %}<li class="score lo">{{ i }}</li>{% endfor %}</ul>{% endif %}{% endif %}
+  {% if a.advice %}<p><b>مشاوره:</b> {{ a.advice.note }}</p>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div>
+  {% if survey_form %}
+  <div class="card form"><h2>نظرسنجی استخراج‌شده — منتظر تأیید</h2><p class="muted small">هوش مصنوعی این نمره‌ها را از وویس درآورده؛ بررسی، اصلاح و تأیید کنید.
+  اگر نمره زیر حد مجاز باشد، شکایت و کار «تماس مجدد» خودکار ساخته می‌شود.</p>
+  <form method="post" action="{% url 'call_action' call.pk %}">{% csrf_token %}<input type="hidden" name="action" value="confirm_survey">
+  <div class="grid g2">{% for f in survey_form %}<div>{{ f.label_tag }}{{ f }}</div>{% endfor %}</div>
+  <p style="margin-top:10px"><button class="btn ok">تأیید و ثبت نظرسنجی</button></p></form></div>
+  {% elif survey %}<div class="card"><h2>نظرسنجی</h2><p>ثبت شد — میانگین <span class="score">{{ survey.average|stars }}</span>
+  {% if survey.complaint %} — <a href="{% url 'complaint_detail' survey.complaint.pk %}">شکایت ساخته شد</a>{% endif %}</p></div>{% endif %}
+
+  {% if pro_complaint and not pro_complaint.confirmed %}
+  <div class="card form"><h2>شکایت متخصص — منتظر تأیید</h2>
+  <form method="post" action="{% url 'call_action' call.pk %}">{% csrf_token %}<input type="hidden" name="action" value="confirm_pro_complaint">
+  <label>علت</label><select name="reason"><option value="">{{ pro_complaint.reason_text|default:"-" }}</option>{% for r in pro_reasons %}<option value="{{ r.pk }}" {% if pro_complaint.reason_id == r.pk %}selected{% endif %}>{{ r.title }}</option>{% endfor %}</select>
+  <label>شرح</label><textarea name="description" rows="4">{{ pro_complaint.description }}</textarea>
+  {% if ex.requested_action %}<p class="muted">درخواست متخصص: {{ ex.requested_action }}</p>{% endif %}
+  <p><button class="btn ok">تأیید و ثبت</button></p></form></div>
+  {% elif pro_complaint %}<div class="card"><p>شکایت متخصص ثبت شد: {{ pro_complaint.reason_text }}</p></div>{% endif %}
+
+  {% if call.kind == 'recall' and call.related_complaint and ex %}
+  <div class="card form"><h2>نتیجه تماس مجدد</h2>
+  <form method="post" action="{% url 'call_action' call.pk %}">{% csrf_token %}<input type="hidden" name="action" value="apply_recall">
+  <textarea name="outcome" rows="3">{{ ex.outcome }}{% if ex.compensation %} — جبران: {{ ex.compensation }}{% endif %}</textarea>
+  <label><input type="checkbox" name="resolved" value="1" style="width:auto" {% if ex.resolved %}checked{% endif %}> شکایت حل شد</label>
+  <button class="btn ok">ثبت روی شکایت</button></form></div>{% endif %}
+
+  {% if ex and call.kind != 'survey' and call.kind != 'satisfaction' %}<div class="card"><h2>اطلاعات استخراج‌شده</h2><table>
+  {% for k,v in ex.items %}<tr><th>{{ k }}</th><td>{{ v|default:"-" }}</td></tr>{% endfor %}</table></div>{% endif %}
+
+  {% if call.status == 'done' %}<div class="card form"><h2>بررسی سرپرست</h2>
+  <form method="post" action="{% url 'call_action' call.pk %}">{% csrf_token %}<input type="hidden" name="action" value="review">
+  <textarea name="review_note" rows="2" placeholder="بازخورد به کارشناس (اختیاری)"></textarea><p><button class="btn">بررسی شد</button></p></form></div>
+  {% elif call.review_note %}<div class="card"><h2>بازخورد سرپرست</h2><p>{{ call.review_note }}</p></div>{% endif %}
+
+  {% if call.transcript %}<div class="card"><h2>متن مکالمه</h2><div class="transcript"><pre>{{ call.transcript }}</pre></div>
+  <p class="muted small">هزینه پردازش: {{ call.ai_cost }} دلار</p></div>{% endif %}
+</div>
+</div>
+{% endblock %}

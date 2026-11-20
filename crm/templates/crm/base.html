@@ -1,0 +1,37 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}CRM سرویک{% endblock %}</title><link rel="stylesheet" href="{% static 'app.css' %}"></head>
+<body>{% with u=request.resolver_match.url_name %}
+<div class="layout">
+<nav class="side">
+  <div class="logo">سرویک</div>
+  <a href="{% url 'dashboard' %}" class="{% if u == 'dashboard' %}on{% endif %}">داشبورد</a>
+  <h4>مکالمات</h4>
+  <a href="{% url 'call_upload' %}" class="{% if u == 'call_upload' %}on{% endif %}">آپلود وویس</a>
+  <a href="{% url 'call_list' %}" class="{% if u == 'call_list' or u == 'call_detail' %}on{% endif %}">مکالمات و تحلیل‌ها</a>
+  <h4>سفارش و پخش کار</h4>
+  <a href="{% url 'order_new' %}" class="{% if u == 'order_new' %}on{% endif %}">ثبت سفارش</a>
+  <a href="{% url 'dispatch' %}" class="{% if u == 'dispatch' %}on{% endif %}">پخش کار</a>
+  <h4>کیفیت</h4>
+  <a href="{% url 'survey_new' %}" class="{% if u == 'survey_new' %}on{% endif %}">ثبت نظرسنجی</a>
+  <a href="{% url 'survey_list' %}" class="{% if u == 'survey_list' %}on{% endif %}">نظرسنجی‌ها</a>
+  <a href="{% url 'complaint_list' %}" class="{% if u == 'complaint_list' or u == 'complaint_detail' %}on{% endif %}">شکایات از متخصصین</a>
+  <a href="{% url 'pro_complaint_list' %}" class="{% if u == 'pro_complaint_list' %}on{% endif %}">شکایات متخصصان</a>
+  <a href="{% url 'task_list' %}" class="{% if u == 'task_list' %}on{% endif %}">کارهای پیگیری</a>
+  <h4>متخصصین</h4>
+  <a href="{% url 'ticket_list' %}" class="{% if u == 'ticket_list' or u == 'ticket_detail' or u == 'ticket_new' %}on{% endif %}">تیکت‌ها</a>
+  <a href="{% url 'availability' %}" class="{% if u == 'availability' %}on{% endif %}">اشتغال روزانه</a>
+  <a href="{% url 'report_capacity' %}" class="{% if u == 'report_capacity' %}on{% endif %}">ظرفیت و نیازمند نیرو</a>
+  <a href="{% url 'report_commission' %}" class="{% if u == 'report_commission' %}on{% endif %}">کمیسیون نیم‌بها</a>
+  <a href="{% url 'report_specialists' %}" class="{% if u == 'report_specialists' %}on{% endif %}">کارنامه متخصصین</a>
+  <h4>مدیریت</h4>
+  <a href="{% url 'report_agents' %}" class="{% if u == 'report_agents' %}on{% endif %}">کارنامه کارشناسان</a>
+  <a href="{% url 'import' %}" class="{% if u == 'import' %}on{% endif %}">ورود داده از اکسل</a>
+  <a href="{% url 'admin:index' %}">تنظیمات و داده‌ها</a>
+  <form method="post" action="{% url 'logout' %}" style="padding:12px 20px">{% csrf_token %}<button class="btn sec sm">خروج ({{ request.user.get_username }})</button></form>
+</nav>
+<main>
+{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+{% block content %}{% endblock %}
+</main></div>{% endwith %}
+</body></html>

@@ -413,7 +413,7 @@ def report_agents(request):
             if isinstance(it, dict) and it.get("done") is not None:
                 m = misses[c.agent_id][it.get("item")]
                 m[1] += 1
-                m[0] += 0 if it.get("done") else 1
+                m[0] += {True: 0, "partial": 0.5}.get(it.get("done"), 1)
     items = [c.title for c in ChecklistItem.of(ChecklistItem.CALL)]
     rows = []
     for s in stats:

@@ -73,7 +73,7 @@ class FlowTests(TestCase):
         faults = ChecklistItem.of(ChecklistItem.FAULT)
         crit = [c.title for c in ChecklistItem.of(ChecklistItem.SURVEY)]
         analysis = {"summary": "مشتری از تأخیر ناراضی بود", "checklist": [
-            {"item": c.title, "done": i % 2 == 0, "evidence": "", "note": ""} for i, c in enumerate(ChecklistItem.of(ChecklistItem.CALL))],
+            {"item": c.title, "done": [True, False, "partial"][i % 3], "evidence": "", "note": ""} for i, c in enumerate(ChecklistItem.of(ChecklistItem.CALL))],
             "tone": {"score": 4, "note": "مؤدب", "issues": []}, "advice": {"score": None, "note": ""},
             "extracted": {"answered": True, "scores": {crit[0]: 5, crit[1]: 2, crit[2]: 3}, "result": "unhappy",
                           "comment": "نیرو دیر رسید", "specialist_faults": [faults[2].title]}}
@@ -87,7 +87,7 @@ class FlowTests(TestCase):
         call.refresh_from_db()
         self.assertEqual(call.status, "done", call.error)
         self.assertIn("سرویک", call.transcript)
-        self.assertEqual(call.checklist_score, Decimal("57.1"))
+        self.assertEqual(call.checklist_score, Decimal("57.1"))  # 3 done + 2 partial of 7
         self.assertEqual(call.tone_score, 4)
         s = Survey.objects.get(call=call)
         self.assertFalse(s.confirmed)

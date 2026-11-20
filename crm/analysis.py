@@ -19,11 +19,13 @@ log = logging.getLogger(__name__)
 SYSTEM = """تو ارزیاب کیفیت مکالمات تیم پشتیبانی «سرویک» هستی؛ شرکتی که نیروی نظافت (منزل، مشاعات، محل کار) اعزام می‌کند.
 متن پیاده‌شده‌ی یک تماس تلفنی را می‌گیری و فقط یک شیء JSON معتبر برمی‌گردانی، بدون هیچ متن دیگری.
 منصف و دقیق باش؛ فقط بر اساس چیزی که در متن هست قضاوت کن و برای هر قضاوت جمله‌ی شاهد کوتاه از متن بیاور.
+برای هر مورد چک‌لیست سخت‌گیر باش: done=true فقط وقتی همه‌ی اجزای آن مورد انجام شده؛ اگر بخشی انجام شده و بخشی نه
+(مثلاً سلام کرد ولی نام شرکت را نگفت) مقدار "partial" بگذار و در note بگو چه چیزی جا افتاد؛ اگر انجام نشد false.
 اگر موردی در این نوع تماس موضوعیت ندارد مقدار done را null بگذار. همه‌ی متن‌ها فارسی باشد."""
 
 COMMON_SCHEMA = """{
   "summary": "خلاصه‌ی دو تا چهار جمله‌ای تماس",
-  "checklist": [{"item": "عنوان دقیق مورد از فهرست", "done": true|false|null, "evidence": "نقل کوتاه", "note": "توضیح کوتاه"}],
+  "checklist": [{"item": "عنوان دقیق مورد از فهرست", "done": true|"partial"|false|null, "evidence": "نقل کوتاه", "note": "توضیح کوتاه"}],
   "tone": {"score": 1-5, "note": "ارزیابی لحن و برخورد کارشناس", "issues": ["جمله‌ها یا رفتارهای نامناسب، اگر بود"]},
   "advice": {"score": 1-5 یا null, "note": "کیفیت مشاوره و راهنمایی مشتری"},
   "other_party_sentiment": "positive|neutral|negative",
@@ -84,7 +86,8 @@ def apply_analysis(call: Call, data: dict) -> None:
     """Store scores on the call and create the unconfirmed drafts for the human to confirm."""
     call.analysis = data
     items = [c for c in data.get("checklist") or [] if isinstance(c, dict) and c.get("done") is not None]
-    call.checklist_score = round(100 * sum(1 for c in items if c.get("done")) / len(items), 1) if items else None
+    credit = {True: 1.0, "partial": 0.5, False: 0.0}
+    call.checklist_score = round(100 * sum(credit.get(c.get("done"), 0.0) for c in items) / len(items), 1) if items else None
     call.tone_score = _int((data.get("tone") or {}).get("score"))
     call.advice_score = _int((data.get("advice") or {}).get("score"))
     ex = data.get("extracted") or {}

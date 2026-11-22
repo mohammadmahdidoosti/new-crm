@@ -76,14 +76,17 @@ class ChecklistItem(models.Model):
     SURVEY = "survey"
     PRO_COMPLAINT = "pro_complaint"
     KINDS = [
-        (CALL, "چک‌لیست مکالمه کارشناس (موارد هفت‌گانه)"),
+        (CALL, "چک‌لیست مکالمه کارشناس"),
         (FAULT, "دلایل شکایت مشتری از متخصص"),
         (SURVEY, "معیارهای نظرسنجی"),
         (PRO_COMPLAINT, "دلایل شکایت متخصص"),
     ]
     kind = models.CharField("نوع", max_length=20, choices=KINDS)
     title = models.CharField("عنوان", max_length=200)
-    guide = models.TextField("راهنما برای تحلیل‌گر", blank=True, help_text="یعنی چه؟ مثال خوب و بد. هوش مصنوعی از این متن استفاده می‌کند.")
+    guide = models.TextField("راهنما برای تحلیل‌گر", blank=True, help_text="یعنی چه؟ متن دستورالعمل، شرط اجرا، مثال خوب و بد. هوش مصنوعی از این متن استفاده می‌کند.")
+    group = models.CharField("گروه", max_length=80, blank=True, help_text="فقط برای چک‌لیست مکالمه؛ مثلاً «دیالوگ نهایی هماهنگی سفارش»")
+    call_kinds = models.CharField("فقط برای این نوع تماس‌ها", max_length=200, blank=True,
+                                  help_text="کدهای نوع تماس با ویرگول، مثلاً order,new_customer. خالی = همه‌ی تماس‌ها")
     order = models.PositiveSmallIntegerField("ترتیب", default=0)
     active = models.BooleanField("فعال", default=True)
 
@@ -98,6 +101,20 @@ class ChecklistItem(models.Model):
     @classmethod
     def of(cls, kind):
         return list(cls.objects.filter(kind=kind, active=True))
+
+    @classmethod
+    def call_items(cls, call_kind: str):
+        """Call checklist items that apply to this kind of call."""
+        out = []
+        for c in cls.of(cls.CALL):
+            kinds = [k.strip() for k in c.call_kinds.split(",") if k.strip()]
+            if not kinds or call_kind in kinds:
+                out.append(c)
+        return out
+
+    def applies_to(self, call_kind: str) -> bool:
+        kinds = [k.strip() for k in self.call_kinds.split(",") if k.strip()]
+        return not kinds or call_kind in kinds
 
 
 class ServiceType(models.Model):
@@ -355,7 +372,7 @@ class Call(TimeStamped):
     transcript = models.TextField("متن مکالمه", blank=True)
     analysis = models.JSONField("تحلیل", default=dict, blank=True)
     ai_cost = models.DecimalField("هزینه هوش مصنوعی (دلار)", max_digits=8, decimal_places=5, default=0)
-    checklist_score = models.DecimalField("نمره موارد هفت‌گانه (از ۱۰۰)", max_digits=5, decimal_places=1, null=True, blank=True)
+    checklist_score = models.DecimalField("نمره چک‌لیست (از ۱۰۰)", max_digits=5, decimal_places=1, null=True, blank=True)
     tone_score = models.PositiveSmallIntegerField("نمره لحن (۱-۵)", null=True, blank=True)
     advice_score = models.PositiveSmallIntegerField("نمره مشاوره (۱-۵)", null=True, blank=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

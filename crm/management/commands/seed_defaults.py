@@ -1,6 +1,7 @@
 """Create default rules, lists and service types (idempotent). Defaults are placeholders to confirm with the team."""
 from django.core.management.base import BaseCommand
 
+from crm.defaults import FINAL_DIALOGUE, FINAL_GROUP, GENERAL_GROUP
 from crm.models import CannedResponse, ChecklistItem, Rules, ServiceType
 
 CALL = [
@@ -37,6 +38,12 @@ class Command(BaseCommand):
                 continue
             for i, (title, guide) in enumerate(items):
                 ChecklistItem.objects.create(kind=kind, title=title, guide=guide, order=i)
+                n += 1
+        if not ChecklistItem.objects.filter(kind=ChecklistItem.CALL, group=FINAL_GROUP).exists():
+            ChecklistItem.objects.filter(kind=ChecklistItem.CALL, group="").update(group=GENERAL_GROUP)
+            for i, (title, guide) in enumerate(FINAL_DIALOGUE):
+                ChecklistItem.objects.create(kind=ChecklistItem.CALL, title=title, guide=guide, group=FINAL_GROUP,
+                                             call_kinds="order", order=20 + i)
                 n += 1
         for name, cat, vip in SERVICES:
             ServiceType.objects.get_or_create(name=name, defaults={"category": cat, "is_vip": vip})

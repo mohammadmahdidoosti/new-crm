@@ -35,8 +35,8 @@ class RulesAdmin(admin.ModelAdmin):
 
 @admin.register(ChecklistItem)
 class ChecklistAdmin(admin.ModelAdmin):
-    list_display = ("title", "kind", "order", "active")
-    list_filter = ("kind", "active")
+    list_display = ("title", "kind", "group", "call_kinds", "order", "active")
+    list_filter = ("kind", "group", "active")
     list_editable = ("order", "active")
 
 

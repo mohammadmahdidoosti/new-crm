@@ -128,8 +128,20 @@ def call_detail(request, pk):
         if f:
             initial["fault"] = f.pk
         survey_form = SF(initial=initial)
+    groups = {c.title: (c.group or "عمومی") for c in ChecklistItem.of(ChecklistItem.CALL)}
+    credit = {True: 1.0, "partial": 0.5, False: 0.0}
+    checklist_groups = {}
+    for it in data.get("checklist") or []:
+        if isinstance(it, dict):
+            g = checklist_groups.setdefault(groups.get(it.get("item"), "سایر"), {"items": [], "got": 0.0, "n": 0})
+            g["items"].append(it)
+            if it.get("done") is not None:
+                g["n"] += 1
+                g["got"] += credit.get(it.get("done"), 0.0)
+    for g in checklist_groups.values():
+        g["score"] = round(100 * g["got"] / g["n"]) if g["n"] else None
     return render(request, "crm/call_detail.html", {
-        "call": call, "a": data, "ex": data.get("extracted") or {}, "survey": survey, "survey_form": survey_form,
+        "call": call, "a": data, "checklist_groups": checklist_groups, "ex": data.get("extracted") or {}, "survey": survey, "survey_form": survey_form,
         "pro_complaint": call.specialist_complaints.first(), "specialists": Specialist.objects.filter(active=True),
         "pro_reasons": ChecklistItem.of(ChecklistItem.PRO_COMPLAINT),
         "raw": analysis.dumps(data) if data else ""})

@@ -52,8 +52,13 @@ EXTRACT["other"] = '"extracted": {}'
 
 
 def build_prompt(call: Call) -> str:
-    checklist = ChecklistItem.of(ChecklistItem.CALL)
-    lines = [f"- {c.title}" + (f": {c.guide}" if c.guide else "") for c in checklist]
+    checklist = ChecklistItem.call_items(call.kind)
+    lines, group = [], None
+    for c in checklist:
+        if (c.group or "عمومی") != group:
+            group = c.group or "عمومی"
+            lines.append(f"\n[{group}]")
+        lines.append(f"- {c.title}" + (f": {c.guide}" if c.guide else ""))
     extract = EXTRACT.get(call.kind, '"extracted": {}')
     survey_keys = ", ".join(f'"{c.title}": 1-5|null' for c in ChecklistItem.of(ChecklistItem.SURVEY))
     faults = "، ".join(c.title for c in ChecklistItem.of(ChecklistItem.FAULT))
@@ -65,11 +70,17 @@ def build_prompt(call: Call) -> str:
     if call.specialist:
         ctx.append(f"متخصص: {call.specialist.name}")
     if call.order:
-        ctx.append(f"سفارش: {call.order.service} در {timezone.localtime(call.order.start):%Y-%m-%d %H:%M}")
+        o = call.order
+        ctx.append(f"سفارش: {o.service} در {timezone.localtime(o.start):%Y-%m-%d %H:%M}، {o.hours} ساعت"
+                   + (f"، مبلغ {o.price:,} ریال" if o.price else "")
+                   + (f"، متخصص {o.specialist.get_gender_display()}" if o.specialist else
+                      (f"، نیروی {o.get_gender_needed_display()}" if o.gender_needed else "")))
     if call.note:
         ctx.append(f"یادداشت کارشناس: {call.note}")
     return (f"نوع تماس: {call.get_kind_display()}\n" + ("\n".join(ctx) + "\n" if ctx else "") +
-            "\nفهرست موارد هفت‌گانه‌ی رفتار کارشناس (برای checklist، عنوان‌ها را دقیقاً همین‌طور بنویس):\n" + "\n".join(lines) +
+            "\nچک‌لیست رفتار کارشناس در این نوع تماس (برای checklist همه‌ی موارد را به همین ترتیب بیاور و عنوان‌ها را دقیقاً همین‌طور بنویس؛"
+            " اگر شرط یک مورد برقرار نیست، مثلاً سفارش کوتاه‌تر از حد یا نیروی آقا، done را null بگذار و در note بگو چرا):\n"
+            + "\n".join(lines) +
             "\n\nقالب خروجی:\n" + COMMON_SCHEMA.replace('"extracted": { ... }', extract) +
             "\n\nمتن تماس:\n" + call.transcript)
 

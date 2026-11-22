@@ -28,12 +28,15 @@
   </div>
 
   <div class="card"><h2>ارزیابی کارشناس</h2>
-  <div class="grid g3"><div class="stat"><b>{% if call.checklist_score != None %}{{ call.checklist_score|floatformat:0|fanum }}٪{% else %}-{% endif %}</b><span>موارد هفت‌گانه</span></div>
+  <div class="grid g3"><div class="stat"><b>{% if call.checklist_score != None %}{{ call.checklist_score|floatformat:0|fanum }}٪{% else %}-{% endif %}</b><span>چک‌لیست (کل)</span></div>
   <div class="stat"><b>{{ call.tone_score|fanum|default:"-" }}</b><span>لحن (از ۵)</span></div>
   <div class="stat"><b>{{ call.advice_score|fanum|default:"-" }}</b><span>مشاوره (از ۵)</span></div></div>
-  <table style="margin-top:10px"><tr><th>مورد</th><th>وضعیت</th><th>شاهد / توضیح</th></tr>
-  {% for it in a.checklist %}<tr><td>{{ it.item }}</td><td>{% if it.done == True %}<span class="tag ok">رعایت شد</span>{% elif it.done == "partial" %}<span class="tag warn">نسبی</span>{% elif it.done == False %}<span class="tag bad">رعایت نشد</span>{% else %}<span class="tag">موضوعیت ندارد</span>{% endif %}</td>
+  {% for gname, g in checklist_groups.items %}
+  <h3 style="margin-top:14px">{{ gname }} {% if g.score != None %}<span class="score {% if g.score < 70 %}lo{% else %}hi{% endif %}">— {{ g.score|fanum }}٪</span>{% endif %}</h3>
+  <table><tr><th>مورد</th><th>وضعیت</th><th>شاهد / توضیح</th></tr>
+  {% for it in g.items %}<tr><td>{{ it.item }}</td><td>{% if it.done == True %}<span class="tag ok">رعایت شد</span>{% elif it.done == "partial" %}<span class="tag warn">نسبی</span>{% elif it.done == False %}<span class="tag bad">رعایت نشد</span>{% else %}<span class="tag">موضوعیت ندارد</span>{% endif %}</td>
   <td class="small">{% if it.evidence %}«{{ it.evidence }}»{% endif %} {{ it.note }}</td></tr>{% endfor %}</table>
+  {% endfor %}
   {% if a.tone %}<p><b>لحن:</b> {{ a.tone.note }}</p>{% if a.tone.issues %}<ul>{% for i in a.tone.issues %}<li class="score lo">{{ i }}</li>{% endfor %}</ul>{% endif %}{% endif %}
   {% if a.advice %}<p><b>مشاوره:</b> {{ a.advice.note }}</p>{% endif %}
   </div>

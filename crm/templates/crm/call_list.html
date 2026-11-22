@@ -5,7 +5,7 @@
 {% for k,l in statuses %}<a href="?status={{k}}" class="{% if request.GET.status == k %}on{% endif %}">{{ l }}</a>{% endfor %}
 <a href="?mine=1" class="{% if request.GET.mine %}on{% endif %}">مکالمات من</a></div>
 <div class="filters">{% for k,l in kinds %}<a href="?kind={{k}}" class="{% if request.GET.kind == k %}on{% endif %}">{{ l }}</a>{% endfor %}</div>
-<div class="tbl"><table><tr><th>#</th><th>زمان</th><th>نوع</th><th>کارشناس</th><th>مشتری</th><th>متخصص</th><th>هفت‌گانه</th><th>لحن</th><th>مشاوره</th><th>وضعیت</th></tr>
+<div class="tbl"><table><tr><th>#</th><th>زمان</th><th>نوع</th><th>کارشناس</th><th>مشتری</th><th>متخصص</th><th>چک‌لیست</th><th>لحن</th><th>مشاوره</th><th>وضعیت</th></tr>
 {% for c in page %}<tr><td><a href="{% url 'call_detail' c.pk %}">{{ c.pk|fanum }}</a></td><td>{{ c.created_at|jdt }}</td><td>{{ c.get_kind_display }}</td>
 <td>{{ c.agent|default:"-" }}</td><td>{{ c.customer.name|default:"-" }}</td><td>{{ c.specialist|default:"-" }}</td>
 <td>{% if c.checklist_score != None %}<span class="score {% if c.checklist_score < 70 %}lo{% else %}hi{% endif %}">{{ c.checklist_score|floatformat:0|fanum }}٪</span>{% else %}-{% endif %}</td>

@@ -73,7 +73,7 @@ class FlowTests(TestCase):
         faults = ChecklistItem.of(ChecklistItem.FAULT)
         crit = [c.title for c in ChecklistItem.of(ChecklistItem.SURVEY)]
         analysis = {"summary": "مشتری از تأخیر ناراضی بود", "checklist": [
-            {"item": c.title, "done": [True, False, "partial"][i % 3], "evidence": "", "note": ""} for i, c in enumerate(ChecklistItem.of(ChecklistItem.CALL))],
+            {"item": c.title, "done": [True, False, "partial"][i % 3], "evidence": "", "note": ""} for i, c in enumerate(ChecklistItem.call_items("survey"))],
             "tone": {"score": 4, "note": "مؤدب", "issues": []}, "advice": {"score": None, "note": ""},
             "extracted": {"answered": True, "scores": {crit[0]: 5, crit[1]: 2, crit[2]: 3}, "result": "unhappy",
                           "comment": "نیرو دیر رسید", "specialist_faults": [faults[2].title]}}
@@ -220,3 +220,23 @@ class FlowTests(TestCase):
         call = Call.objects.create(kind="order", audio=SimpleUploadedFile("c.ogg", b"x", "audio/ogg"))
         self.client.logout()
         self.assertEqual(self.client.get(reverse("call_audio", args=[call.pk])).status_code, 302)
+
+
+class ChecklistScopeTests(TestCase):
+    def setUp(self):
+        call_command("seed_defaults", verbosity=0)
+
+    def test_final_dialogue_only_for_order_calls(self):
+        from crm.analysis import build_prompt
+        from crm.defaults import FINAL_GROUP
+        order_call = Call(kind="order", transcript="x")
+        survey_call = Call(kind="survey", transcript="x")
+        self.assertIn(FINAL_GROUP, build_prompt(order_call))
+        self.assertIn("تسویه هزینه با متخصص", build_prompt(order_call))
+        self.assertNotIn(FINAL_GROUP, build_prompt(survey_call))
+        self.assertEqual(len(ChecklistItem.call_items("order")), 14)
+        self.assertEqual(len(ChecklistItem.call_items("survey")), 7)
+
+    def test_seed_is_idempotent(self):
+        call_command("seed_defaults", verbosity=0)
+        self.assertEqual(ChecklistItem.objects.filter(kind=ChecklistItem.CALL).count(), 14)

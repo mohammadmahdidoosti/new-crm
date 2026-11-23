@@ -16,8 +16,9 @@ from django.utils import timezone
 
 from crm import rules
 from crm.jalali import fmt_date, parse_date, parse_datetime
-from crm.models import (Availability, Call, ChecklistItem, Complaint, Customer, FollowUpTask, Order, Rules, ServiceType,
-                        Specialist, SpecialistComplaint, Survey, normalize_phone)
+from crm.models import (Availability, Call, ChecklistItem, Complaint, Customer, DailyCheck, FollowUpTask, LostCustomer, Order,
+                        Penalty, PenaltyType, RecurringTask, Rules, ServiceType, Specialist, SpecialistComplaint, Survey,
+                        normalize_phone)
 
 
 def tiny_audio() -> bytes:
@@ -87,7 +88,7 @@ class FlowTests(TestCase):
         call.refresh_from_db()
         self.assertEqual(call.status, "done", call.error)
         self.assertIn("سرویک", call.transcript)
-        self.assertEqual(call.checklist_score, Decimal("57.1"))  # 3 done + 2 partial of 7
+        self.assertEqual(call.checklist_score, Decimal("55.0"))  # 3 done + 3 partial of 9, + automatic banned-words check passed
         self.assertEqual(call.tone_score, 4)
         s = Survey.objects.get(call=call)
         self.assertFalse(s.confirmed)
@@ -154,10 +155,27 @@ class FlowTests(TestCase):
                                                legacy_first_order=dt.date(2024, 1, 1), legacy_last_order=dt.date(2024, 1, 1))
         o_plain = Order.objects.create(customer=o_plain_cust, service=self.home, start=start - dt.timedelta(hours=3))
         q = rules.dispatch_queue()
+        # default tiers: home VIP, first order, churned, ..., home normal (then earliest start)
         self.assertEqual(q[0], o_first)
-        self.assertEqual(q[1], o_loyal)
-        self.assertEqual(q[-1], o_plain)
-        self.cust.blocked_specialists.add(self.sp2)
+        self.assertEqual([q[1], q[2]], [o_plain, o_loyal])
+        vip = ServiceType.objects.get(name="نظافت ویژه منزل (VIP)")
+        o_vip = Order.objects.create(customer=loyal, service=vip, start=start + dt.timedelta(hours=10))
+        churn = Customer.objects.create(name="چرن", phone="09123333333", legacy_order_count=5,
+                                        legacy_first_order=dt.date(2024, 1, 1), legacy_last_order=dt.date(2025, 1, 1))
+        o_churn = Order.objects.create(customer=churn, service=self.home, start=start + dt.timedelta(hours=11))
+        q = rules.dispatch_queue()
+        self.assertEqual(q[0], o_vip)
+        self.assertEqual(q[1], o_first)
+        self.assertEqual(q[2], o_churn)
+        self.assertEqual(q[2].tier_label, "مشتری چرن‌شده / ناراضی قبلی")
+        r = Rules.get()
+        r.dispatch_tiers = "first_order,home_vip"
+        r.save()
+        self.assertEqual(rules.dispatch_queue()[0], o_first)
+        self.assertEqual(rules.dispatch_queue()[1], o_vip)
+        o_vip.delete()
+        o_churn.delete()
+        self.cust.blocked_by_specialists.add(self.sp2)
         names = [s["specialist"] for s in rules.suggest_specialists(o_first)]
         self.assertEqual(names, [self.sp])
         Availability.objects.create(specialist=self.sp, date=timezone.localtime(o_loyal.start).date(), state="leave")
@@ -178,18 +196,35 @@ class FlowTests(TestCase):
         for i in range(4):
             t = timezone.make_aware(dt.datetime.combine(sat + dt.timedelta(days=i), dt.time(9)))
             Order.objects.create(customer=self.cust, service=self.home, start=t, status=Order.DONE, specialist=self.sp2, price=1)
+        # customer cancelled after assignment counts as a worked day; worker fault does not
+        t = timezone.make_aware(dt.datetime.combine(sat + dt.timedelta(days=4), dt.time(9)))
+        Order.objects.create(customer=self.cust, service=self.home, start=t, status=Order.CANCELLED, specialist=self.sp2,
+                             cancelled_after_assign=True)
+        t = timezone.make_aware(dt.datetime.combine(sat + dt.timedelta(days=5), dt.time(9)))
+        Order.objects.create(customer=self.cust, service=self.home, start=t, status=Order.CANCELLED, specialist=self.sp2,
+                             worker_fault=True)
         rows = {r["specialist"]: r for r in rules.weekly_commission(sat)}
+        self.assertEqual(rows[self.sp2]["day_count"], 5)
         self.assertTrue(rows[self.sp]["eligible"])
         self.assertEqual(len(rows[self.sp]["bonus_days"]), 2)
         self.assertEqual(rows[self.sp]["saving_rial"], 2 * 1_000_000)  # 20% of 10M halved, twice
         self.assertFalse(rows[self.sp2]["eligible"])
-        self.assertEqual(rows[self.sp2]["needs"], 2)
+        self.assertEqual(rows[self.sp2]["needs"], 1)
+        # fixed 8-hour periodic orders keep the normal commission
+        Order.objects.filter(specialist=self.sp, start__date=sat + dt.timedelta(days=6)).update(is_periodic=True, hours=8)
+        rows = {r["specialist"]: r for r in rules.weekly_commission(sat)}
+        self.assertEqual(len(rows[self.sp]["bonus_orders"]), 1)
+        self.assertEqual(rows[self.sp]["excluded_fixed"], 1)
+        g = rules.thursday_groups(sat)
+        self.assertIn(self.sp, [x[0] for x in g["both"]])
+        self.assertIn(self.sp2, [x[0] for x in g["friday"]] + [x[0] for x in g["if_thursday"]] + [x[0] for x in g["both"]])
 
     def test_pages_render(self):
         Order.objects.create(customer=self.cust, service=self.home, start=timezone.now() + dt.timedelta(hours=5))
         for name in ["dashboard", "call_list", "call_upload", "order_new", "dispatch", "survey_list", "survey_new",
                      "complaint_list", "pro_complaint_list", "ticket_list", "ticket_new", "report_commission",
-                     "report_capacity", "report_agents", "report_specialists", "task_list", "import", "availability"]:
+                     "report_capacity", "report_agents", "report_specialists", "task_list", "import", "availability",
+                     "daily_lists", "lost_list", "penalty_list", "complaint_new", "report_vip", "report_top", "settings"]:
             self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
         self.assertEqual(self.client.get("/admin/crm/rules/").status_code, 200)
 
@@ -234,9 +269,128 @@ class ChecklistScopeTests(TestCase):
         self.assertIn(FINAL_GROUP, build_prompt(order_call))
         self.assertIn("تسویه هزینه با متخصص", build_prompt(order_call))
         self.assertNotIn(FINAL_GROUP, build_prompt(survey_call))
-        self.assertEqual(len(ChecklistItem.call_items("order")), 14)
-        self.assertEqual(len(ChecklistItem.call_items("survey")), 7)
+        self.assertEqual(len(ChecklistItem.call_items("order")), 21)
+        self.assertEqual(len(ChecklistItem.call_items("survey")), 9)
+        self.assertNotIn("سلام، معرفی خود و شرکت", [c.title for c in ChecklistItem.call_items("order")])
 
     def test_seed_is_idempotent(self):
+        before = (ChecklistItem.objects.count(), PenaltyType.objects.count(), RecurringTask.objects.count())
         call_command("seed_defaults", verbosity=0)
-        self.assertEqual(ChecklistItem.objects.filter(kind=ChecklistItem.CALL).count(), 14)
+        self.assertEqual(before, (ChecklistItem.objects.count(), PenaltyType.objects.count(), RecurringTask.objects.count()))
+        self.assertGreaterEqual(before[1], 17)
+        self.assertGreaterEqual(before[2], 25)
+
+
+
+@override_settings(STORAGES={"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+                             "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
+class PhaseATests(TestCase):
+    def setUp(self):
+        call_command("seed_defaults", verbosity=0)
+        self.user = User.objects.create_superuser("boss", password="pass-pass-123")
+        self.client.force_login(self.user)
+        self.home = ServiceType.objects.get(name="نظافت منزل")
+        self.cust = Customer.objects.create(name="مشتری", phone="09120000009", address="تهران", source="سایت")
+        self.sp = Specialist.objects.create(name="نیرو", phone="09120000001", gender="f", does_home=True, score=Decimal("4.8"))
+
+    def test_banned_words_found_only_in_agent_lines(self):
+        from crm.analysis import find_banned
+        t = "کارشناس: سلام، آره حتماً، فقط اون روز نمیشه.\nطرف مقابل: اوکی ممنون"
+        words = [h["word"] for h in find_banned(t, Rules.get().banned_list())]
+        self.assertIn("آره", words)
+        self.assertIn("نمیشه", words)
+        self.assertNotIn("اوکی", words)
+
+    def test_order_restrictions_block_and_override(self):
+        self.cust.debt = 300000
+        self.cust.save()
+        data = {"customer_name": "مشتری", "customer_phone": "09120000009", "service": self.home.pk, "start": "1405/09/10 09:00",
+                "hours": "4", "gender_needed": "", "address": "تهران"}
+        self.client.post(reverse("order_new"), data)
+        self.assertEqual(Order.objects.count(), 0)
+        self.client.post(reverse("order_new"), {**data, "override": "1"})
+        self.assertEqual(Order.objects.count(), 1)
+        self.cust.debt = 0
+        self.cust.blocked_by_specialists.add(self.sp)
+        self.cust.save()
+        self.assertTrue(any("بلاک" in p for p in rules.order_restrictions(self.cust, self.sp)))
+        self.assertEqual(rules.order_restrictions(self.cust, None), [])
+
+    def test_vip_review_and_penalties(self):
+        r = Rules.get()
+        r.vip_min_count = 3
+        r.save()
+        for i in range(4):
+            Survey.objects.create(customer=self.cust, specialist=self.sp, scores={"کیفیت کار": 5}, average=Decimal("4.9"),
+                                  call_date=dt.date(2026, 11, 1 + i))
+        self.assertTrue(rules.vip_status(self.sp)["promote"])
+        Survey.objects.create(customer=self.cust, specialist=self.sp, average=Decimal("3.5"), call_date=dt.date(2026, 11, 9))
+        self.assertFalse(rules.vip_status(self.sp)["eligible"])
+        # late penalty: 15 min grace, then 100k per started half hour
+        self.assertEqual(r.late_penalty(10), 0)
+        self.assertEqual(r.late_penalty(25), 100000)
+        self.assertEqual(r.late_penalty(45), 200000)
+        o = Order.objects.create(customer=self.cust, service=self.home, start=timezone.now(), specialist=self.sp, late_minutes=50)
+        late = ChecklistItem.objects.get(kind=ChecklistItem.FAULT, title="تأخیر (متخصص)")
+        c = Complaint.objects.create(specialist=self.sp, order=o, reason=late, reason_text=late.title)
+        self.client.post(reverse("complaint_detail", args=[c.pk]), {"fault": "confirmed", "status": "open", "resolution": ""})
+        p = Penalty.objects.get(complaint=c)
+        self.assertEqual(p.amount, 200000)
+        self.assertEqual(p.status, "proposed")
+        self.client.post(reverse("penalty_list"), {"id": p.pk, "status": "approved", "amount": "200000", "note": ""})
+        p.refresh_from_db()
+        self.assertEqual(p.status, "approved")
+
+    def test_coverage_top_and_lost(self):
+        today = timezone.localdate()
+        Order.objects.create(customer=self.cust, service=self.home, start=timezone.now(), specialist=self.sp, status=Order.DONE,
+                             requested_specific=True)
+        Order.objects.create(customer=self.cust, service=self.home, start=timezone.now(), specialist=self.sp, status=Order.DONE)
+        self.client.post(reverse("lost_list"), {"date": "", "name": "x", "phone": "09121112222", "reason": "capacity"})
+        self.assertEqual(LostCustomer.objects.count(), 1)
+        cov = rules.coverage_rate(rules.month_start(today), today)
+        self.assertEqual((cov["done"], cov["lost"], cov["rate"]), (2, 1, 66.7))
+        top = rules.top_specialists(rules.month_start(today))
+        self.assertEqual(top[0]["specialist"], self.sp)
+        self.assertEqual((top[0]["free"], top[0]["fav"], top[0]["prize"]), (1, 1, 5000000))
+
+    def test_settings_tabs_and_dispatch_order(self):
+        for tab in ["rules", "dispatch", "call", "survey", "fault", "penalties", "tasks", "canned", "services", "users"]:
+            self.assertEqual(self.client.get(reverse("settings") + f"?tab={tab}").status_code, 200, tab)
+        tiers = ["first_order", "home_vip", "churned", "work_vip", "common_vip", "home", "work", "common", "other"]
+        self.client.post(reverse("settings") + "?tab=dispatch", {f"t{i}": t for i, t in enumerate(tiers)})
+        self.assertEqual(Rules.get().tiers()[0], "first_order")
+        bad = {f"t{i}": "home" for i in range(9)}
+        self.client.post(reverse("settings") + "?tab=dispatch", bad)
+        self.assertEqual(Rules.get().tiers()[0], "first_order")
+
+    def test_daily_board_checks(self):
+        o = Order.objects.create(customer=self.cust, service=self.home, start=timezone.now(), specialist=self.sp, status=Order.ASSIGNED)
+        self.client.post(reverse("daily_lists"), {"check_kind": "morning", "order": o.pk, "result": "late", "late": "40"})
+        self.assertEqual(DailyCheck.objects.get(order=o).result, "late")
+        o.refresh_from_db()
+        self.assertEqual(o.late_minutes, 40)
+        task = RecurringTask.objects.first()
+        self.client.post(reverse("daily_lists"), {"task": task.pk})
+        self.assertTrue(task.done.filter(user=self.user).exists())
+        p = Order.objects.create(customer=self.cust, service=self.home, start=timezone.now() + dt.timedelta(days=1),
+                                 specialist=self.sp, is_periodic=True)
+        self.client.post(reverse("daily_lists"), {"check_kind": "periodic", "order": p.pk, "result": "confirmed",
+                                                  "specialist_ok": "no", "note": "دیر می‌آید"})
+        self.assertTrue(Complaint.objects.filter(order=p, specialist=self.sp).exists())
+
+    def test_unhappy_and_periodic_calls_create_records(self):
+        from crm.analysis import apply_analysis
+        o = Order.objects.create(customer=self.cust, service=self.home, start=timezone.now(), specialist=self.sp, is_periodic=True)
+        c1 = Call.objects.create(kind="unhappy", customer=self.cust, specialist=self.sp, order=o, transcript="کارشناس: سلام")
+        apply_analysis(c1, {"checklist": [], "extracted": {"complaint_summary": "دیر رسید", "specialist_faults": ["تأخیر (متخصص)"]}})
+        comp = c1.unhappy_complaints.get()
+        self.assertEqual(comp.reason.title, "تأخیر (متخصص)")
+        self.assertEqual(comp.status, "open")
+        c2 = Call.objects.create(kind="periodic", customer=self.cust, order=o, transcript="کارشناس: سلام")
+        apply_analysis(c2, {"checklist": [], "extracted": {"result": "reschedule", "specialist_ok": "yes", "note": "ساعت ۱۰"}})
+        self.assertEqual(DailyCheck.objects.get(kind="periodic", order=o).result, "reschedule")
+        c3 = Call.objects.create(kind="order", customer=self.cust, transcript="کارشناس: حله")
+        apply_analysis(c3, {"checklist": [{"item": "x", "done": True}], "extracted": {"conditions_rejected": ["آماده بودن وسایل نظافتی"]}})
+        self.assertEqual(c3.analysis["banned"][0]["word"], "حله")
+        self.assertTrue(any("نپذیرفته" in p for p in rules.order_restrictions(self.cust, None, c3)))

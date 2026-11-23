@@ -46,10 +46,10 @@ admin.site.register(CannedResponse, list_display=("title", "category", "active")
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ("name", "phone", "kind", "source", "created_at")
+    list_display = ("name", "phone", "kind", "source", "blocked", "debt", "created_at")
     search_fields = ("name", "phone")
     list_filter = ("kind",)
-    autocomplete_fields = ("favorite_specialists", "blocked_specialists")
+    autocomplete_fields = ("favorite_specialists", "blocked_specialists", "blocked_by_specialists")
 
 
 @admin.register(Specialist)
@@ -118,3 +118,13 @@ class TicketAdmin(admin.ModelAdmin):
 
 
 admin.site.register(FollowUpTask, list_display=("title", "assigned_to", "due", "done"), list_filter=("done",))
+
+
+from .models import DailyCheck, LostCustomer, Penalty, PenaltyType, RecurringTask  # noqa: E402
+
+admin.site.register(LostCustomer, list_display=("date", "name", "phone", "reason", "agent"), list_filter=("reason",),
+                    search_fields=("name", "phone"))
+admin.site.register(PenaltyType, list_display=("title", "amount", "unit", "active"))
+admin.site.register(Penalty, list_display=("specialist", "ptype", "amount", "status", "created_at"), list_filter=("status",))
+admin.site.register(RecurringTask, list_display=("title", "weekdays", "active"), filter_horizontal=("assignees",))
+admin.site.register(DailyCheck, list_display=("kind", "date", "order", "result"), list_filter=("kind", "result"))

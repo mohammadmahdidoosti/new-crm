@@ -2,16 +2,25 @@
 {% block content %}
 <div class="top"><h1>شکایت از {{ c.specialist|default:"-" }}</h1><span class="tag">{{ c.get_status_display }}</span></div>
 <div class="grid g2"><div class="card"><table>
-<tr><th>مشتری</th><td>{{ c.customer|default:"-" }}</td></tr><tr><th>علت</th><td>{{ c.reason_text }}</td></tr>
+<tr><th>منبع</th><td>{{ c.get_source_display }}</td></tr><tr><th>مشتری</th><td>{{ c.customer|default:"-" }}</td></tr><tr><th>علت</th><td>{{ c.reason_text }}</td></tr>
 <tr><th>امتیاز نظرسنجی</th><td>{{ c.score|stars }}</td></tr><tr><th>توضیحات</th><td>{{ c.description|linebreaksbr }}</td></tr>
 {% if c.survey %}<tr><th>نمره‌ها</th><td>{% for k,v in c.survey.scores.items %}{{ k }}: <b>{{ v|fanum }}</b><br>{% endfor %}</td></tr>{% endif %}
 <tr><th>ثبت</th><td>{{ c.created_at|jdt }}</td></tr></table>
 <p style="margin-top:12px"><a class="btn" href="{% url 'call_upload' %}?kind=recall&complaint={{ c.pk }}&customer_phone={{ c.customer.phone|default:'' }}">آپلود وویس تماس مجدد</a></p>
 {% for call in c.recall_calls.all %}<p><a href="{% url 'call_detail' call.pk %}">تماس مجدد #{{ call.pk|fanum }}</a> — {{ call.get_status_display }}</p>{% endfor %}
 </div>
-<div class="card form"><h2>پیگیری</h2><form method="post">{% csrf_token %}
-<label>وضعیت</label><select name="status">{% for k,l in statuses %}<option value="{{k}}" {% if c.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-<label>اقدام / نتیجه پیگیری</label><textarea name="resolution" rows="5">{{ c.resolution }}</textarea>
-<label>مبلغ جبران (تومان)</label><input name="compensation" value="{{ c.compensation|default:'' }}">
-<p><button class="btn">ذخیره</button></p></form></div></div>
+<div class="card form"><h2>پیگیری طبق فرآیند</h2>
+<p class="muted small">۱) شنیدن کامل مشتری ۲) شنیدن اظهارات متخصص بدون قضاوت ۳) تصمیم سرپرست و واحد خشنودی ۴) جبران طبق ضوابط یا توضیح قوانین ۵) اعلام نتیجه به مشتری.</p>
+<form method="post">{% csrf_token %}
+<label>اظهارات متخصص</label><textarea name="specialist_statement" rows="3">{{ c.specialist_statement }}</textarea>
+<div class="row"><div><label>نتیجه بررسی</label><select name="fault">{% for k,l in faults %}<option value="{{k}}" {% if c.fault == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+<div><label>جبران برای مشتری</label><select name="compensation_type">{% for k,l in comps %}<option value="{{k}}" {% if c.compensation_type == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+<div><label>مبلغ جبران (تومان)</label><input name="compensation" value="{{ c.compensation|default:'' }}"></div></div>
+<label>اقدام / نتیجه پیگیری</label><textarea name="resolution" rows="4">{{ c.resolution }}</textarea>
+<div class="row"><div><label>وضعیت</label><select name="status">{% for k,l in statuses %}<option value="{{k}}" {% if c.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+<label style="margin-top:22px"><input type="checkbox" name="refer_retention" value="1" style="width:auto" {% if c.refer_retention %}checked{% endif %}> ارجاع به واحد نگهداشت</label></div>
+<p><button class="btn">ذخیره</button></p></form>
+{% if penalties %}<h3>جریمه‌ها</h3>{% for p in penalties %}<div class="sugg"><span>{{ p.ptype }} — {{ p.amount|money }} تومان</span><span class="tag">{{ p.get_status_display }}</span></div>{% endfor %}
+<a href="{% url 'penalty_list' %}">مدیریت جریمه‌ها</a>{% endif %}
+</div></div>
 {% endblock %}

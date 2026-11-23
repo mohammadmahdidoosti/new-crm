@@ -55,11 +55,13 @@ class OrderForm(forms.ModelForm):
     customer_name = forms.CharField(label="نام مشتری")
     customer_phone = forms.CharField(label="موبایل مشتری")
     start = JalaliDateTimeField(label="زمان شروع (۱۴۰۵/۰۸/۲۹ ۰۹:۰۰)")
+    specialist = forms.ModelChoiceField(label="نیروی مورد علاقه / درخواستی مشتری (اختیاری)", required=False,
+                                        queryset=Specialist.objects.filter(active=True))
 
     class Meta:
         model = Order
-        fields = ["service", "start", "hours", "gender_needed", "district", "address", "has_pets", "is_periodic", "price", "notes",
-                  "tracking_code"]
+        fields = ["service", "start", "hours", "gender_needed", "district", "address", "has_pets", "is_periodic", "is_temporary",
+                  "price", "notes", "tracking_code"]
         widgets = {"address": forms.Textarea(attrs={"rows": 2}), "notes": forms.Textarea(attrs={"rows": 2})}
 
     def __init__(self, *a, **kw):

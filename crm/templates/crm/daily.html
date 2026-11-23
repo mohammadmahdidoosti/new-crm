@@ -1,0 +1,47 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>کارهای امروز من — {{ d|jdate }}</h1><span><a class="btn sec sm" href="?date={{ prev }}">روز قبل</a> <a class="btn sec sm" href="?date={{ next }}">روز بعد</a></span></div>
+{% if temp_due %}<div class="msg error"><b>سفارش موقت بدون نیرو در بازه‌ی لغو:</b>
+{% for o in temp_due %}{{ o.customer.name }} ({{ o.start|jdt }}){% if not forloop.last %}، {% endif %}{% endfor %} — طبق فرآیند لغو و به مشتری اطلاع داده شود، مگر نیرو پیدا شود. <a href="{% url 'dispatch' %}">پخش کار</a></div>{% endif %}
+<div class="grid g2">
+<div class="card"><h2>کارهای تکراری من</h2>
+{% for t in tasks %}<form method="post" class="sugg">{% csrf_token %}<input type="hidden" name="task" value="{{ t.pk }}">
+<span>{% if t.pk in done_ids %}<s class="muted">{{ t.title }}</s>{% else %}{{ t.title }}{% endif %} {% if t.place and t.place != "-" %}<span class="muted small">— {{ t.place }}</span>{% endif %}
+{% if t.link %} <a class="small" href="{% url t.link %}">باز کردن</a>{% endif %}</span>
+{% if t.pk in done_ids %}<button class="btn sec sm" name="undo" value="1">برگرداندن</button>{% else %}<button class="btn ok sm">انجام شد</button>{% endif %}</form>
+{% empty %}<p class="muted">برای امروز کاری تعریف نشده. از تنظیمات ← کارهای تکراری به شما وصل کنید.</p>{% endfor %}</div>
+<div class="card"><h2>نظرسنجی‌های امروز</h2>
+<p class="muted small">سفارش‌های انجام‌شده‌ی دیروز بدون نظرسنجی، و «عدم پاسخ»های سه روز اخیر.</p>
+{% for o in to_survey %}<div class="sugg"><span>{{ o.customer.name }} <span class="muted small">{{ o.customer.phone }} — {{ o.service }} — {{ o.specialist|default:"" }}</span></span>
+<a class="btn sm" href="{% url 'call_upload' %}?kind=survey&customer_phone={{ o.customer.phone }}&order_code={{ o.tracking_code }}">وویس</a></div>{% endfor %}
+{% for s in no_answer %}<div class="sugg"><span>{{ s.customer.name|default:"-" }} <span class="muted small">{{ s.customer.phone }} — عدم پاسخ {{ s.call_date|jdate }}</span></span>
+<a class="btn sec sm" href="{% url 'survey_new' %}">ثبت</a></div>{% endfor %}
+{% if not to_survey and not no_answer %}<p class="muted">موردی نیست.</p>{% endif %}</div>
+</div>
+
+<div class="card"><h2>تماس صبحگاهی با متخصصین ({{ morning|length|fanum }})</h2>
+<p class="muted small">طبق دستورالعمل: بیدار و آماده بودن، حرکت به سمت محل، زمان رسیدن. در صورت تأخیر به مشتری اطلاع بدهید؛ در صورت عدم امکان یا عدم پاسخ، فوراً نیروی جایگزین.</p>
+<div class="tbl"><table><tr><th>ساعت</th><th>متخصص</th><th>مشتری</th><th>نتیجه</th></tr>
+{% for o in morning %}<tr><td>{{ o.start|jdt }}</td><td>{{ o.specialist }} <span class="muted small">{{ o.specialist.phone }}</span></td><td>{{ o.customer.name }}</td>
+<td><form method="post" class="row">{% csrf_token %}<input type="hidden" name="check_kind" value="morning"><input type="hidden" name="order" value="{{ o.pk }}">
+<div><select name="result"><option value="">—</option>{% for k,l in morning_results %}<option value="{{k}}" {% if o.check.result == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+<div style="max-width:110px"><input name="late" placeholder="دقیقه تأخیر" value="{{ o.check.late_minutes|default:'' }}"></div>
+<div><input name="note" placeholder="توضیح" value="{{ o.check.note|default:'' }}"></div><button class="btn sm">ثبت</button></form></td></tr>
+{% empty %}<tr><td colspan="4" class="muted">برای این روز سفارش تخصیص‌یافته‌ای نیست.</td></tr>{% endfor %}</table></div></div>
+
+<div class="card"><h2>تأیید سفارشات دوره‌ای فردا ({{ periodic|length|fanum }})</h2>
+<p class="muted small">پابرجا بودن سفارش، تغییر یا لغو، و رضایت از متخصص ثابت. «ناراضی» خودکار شکایت باز می‌کند.</p>
+<div class="tbl"><table><tr><th>ساعت</th><th>مشتری</th><th>متخصص ثابت</th><th>نتیجه</th></tr>
+{% for o in periodic %}<tr><td>{{ o.start|jdt }}</td><td>{{ o.customer.name }} <span class="muted small">{{ o.customer.phone }}</span></td><td>{{ o.specialist|default:"-" }}</td>
+<td><form method="post" class="row">{% csrf_token %}<input type="hidden" name="check_kind" value="periodic"><input type="hidden" name="order" value="{{ o.pk }}">
+<div><select name="result"><option value="">—</option>{% for k,l in periodic_results %}<option value="{{k}}" {% if o.check.result == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+<div style="max-width:130px"><select name="specialist_ok"><option value="">رضایت؟</option><option value="yes" {% if o.check.specialist_ok == "yes" %}selected{% endif %}>راضی</option><option value="no" {% if o.check.specialist_ok == "no" %}selected{% endif %}>ناراضی</option></select></div>
+<div><input name="note" placeholder="توضیح" value="{{ o.check.note|default:'' }}"></div><button class="btn sm">ثبت</button></form></td></tr>
+{% empty %}<tr><td colspan="4" class="muted">سفارش دوره‌ای برای فردا نیست.</td></tr>{% endfor %}</table></div></div>
+
+{% if is_thursday %}<div class="card"><h2>فهرست نیم‌بهای پنجشنبه</h2>
+<div class="grid g3"><div><h3>پنجشنبه و جمعه</h3>{% for sp,n in thu.both %}<div>{{ sp }} <span class="muted small">({{ n|fanum }} روز)</span></div>{% empty %}<p class="muted">-</p>{% endfor %}</div>
+<div><h3>فقط جمعه</h3>{% for sp,n in thu.friday %}<div>{{ sp }} <span class="muted small">({{ n|fanum }} روز + پنجشنبه)</span></div>{% empty %}<p class="muted">-</p>{% endfor %}</div>
+<div><h3>اگر پنجشنبه کار کند، جمعه</h3>{% for sp,n in thu.if_thursday %}<div>{{ sp }} <span class="muted small">({{ n|fanum }} روز)</span></div>{% empty %}<p class="muted">-</p>{% endfor %}</div></div>
+<a href="{% url 'report_commission' %}">گزارش کامل کمیسیون</a></div>{% endif %}
+{% endblock %}

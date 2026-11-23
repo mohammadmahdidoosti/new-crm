@@ -1,0 +1,8 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}<div class="top"><h1>بررسی ارتقا و تنزل VIP</h1></div>
+<p class="muted">معیار فعلی: در {{ r.vip_window|fanum }} نظرسنجی آخر، میانگین حداقل {{ r.vip_avg_min|stars }} و هیچ امتیازی زیر {{ r.vip_single_min|stars }}؛ با حداقل {{ r.vip_min_count|fanum }} نظرسنجی برای قضاوت. (قابل تغییر در تنظیمات)</p>
+<div class="tbl"><table><tr><th>متخصص</th><th>نوع فعلی</th><th>تعداد نظرسنجی</th><th>میانگین</th><th>کمترین</th><th>پیشنهاد</th><th></th></tr>
+{% for x in rows %}<tr><td>{{ x.specialist }}</td><td>{{ x.specialist.get_worker_type_display }}</td><td>{{ x.n|fanum }}</td><td>{{ x.avg|stars }}</td><td>{{ x.min|stars }}</td>
+<td>{% if x.promote %}<span class="tag ok">ارتقا به VIP</span>{% else %}<span class="tag bad">تنزل از VIP</span>{% endif %}</td>
+<td><form method="post" action="{% url 'vip_apply' x.specialist.pk %}">{% csrf_token %}<input type="hidden" name="worker_type" value="{% if x.promote %}vip_all{% else %}normal{% endif %}"><button class="btn sm">اعمال</button></form></td></tr>
+{% empty %}<tr><td colspan="7" class="muted">فعلاً موردی برای ارتقا یا تنزل نیست.</td></tr>{% endfor %}</table></div>{% endblock %}

@@ -21,10 +21,14 @@
   {% if call.note %}<p class="muted">یادداشت: {{ call.note }}</p>{% endif %}
   </div>
 
+  {% if rejected %}<div class="msg error"><b>مشتری این موارد هفت‌گانه را نپذیرفت:</b> {{ rejected|join:"، " }} — طبق دستورالعمل، سفارش نباید ثبت شود.</div>{% endif %}
+  {% if a.banned %}<div class="msg warning"><b>کلمات ممنوع در صحبت کارشناس:</b> {% for b in a.banned %}«{{ b.word }}»{% if not forloop.last %}، {% endif %}{% endfor %}</div>{% endif %}
   {% if a %}
   <div class="card"><h2>خلاصه</h2><p>{{ a.summary }}</p>
   {% if a.suggested_actions %}<h3>اقدام پیشنهادی</h3><ul>{% for x in a.suggested_actions %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
-  {% if call.kind == 'order' or call.kind == 'new_customer' %}<a class="btn" href="{% url 'order_new' %}?call={{ call.pk }}">ثبت سفارش با اطلاعات این تماس</a>{% endif %}
+  {% if call.kind == 'order' or call.kind == 'new_customer' %}<a class="btn" href="{% url 'order_new' %}?call={{ call.pk }}">ثبت سفارش با اطلاعات این تماس</a>
+  <a class="btn sec" href="{% url 'lost_list' %}?call={{ call.pk }}">ثبت به‌عنوان مشتری از دست رفته</a>{% endif %}
+  {% if call.kind == 'unhappy' %}{% for uc in call.unhappy_complaints.all %}<a class="btn" href="{% url 'complaint_detail' uc.pk %}">شکایت ساخته‌شده</a>{% endfor %}{% endif %}
   </div>
 
   <div class="card"><h2>ارزیابی کارشناس</h2>

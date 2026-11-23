@@ -15,8 +15,8 @@ import openpyxl
 from django.db import transaction
 
 from .jalali import parse_date, parse_datetime
-from .models import (ChecklistItem, Complaint, Customer, Order, ServiceType, Specialist, SpecialistComplaint, Survey,
-                     normalize_phone)
+from .models import (ChecklistItem, Complaint, Customer, LostCustomer, Order, ServiceType, Specialist, SpecialistComplaint,
+                     Survey, normalize_phone)
 
 
 def _norm(h) -> str:
@@ -306,7 +306,28 @@ def import_crm_customer_report(t: Table, res: Result):
         res.updated += not created
 
 
+def import_sheet_lost(t: Table, res: Result):
+    """Operations sheet: مشتریان از دست رفته (for the coverage rate)."""
+    codes = {label: code for code, label in LostCustomer.REASONS}
+    for r in t.records():
+        d = parse_date(r.get("تاریخ"))
+        reason = codes.get(_s(r.get("وضعیت")), "other")
+        phone = normalize_phone(r.get("شماره تماس"))
+        if not d or not (phone or _s(r.get("اسم و فامیل مشتری"))):
+            res.skipped += 1
+            continue
+        if LostCustomer.objects.filter(date=d, phone=phone, reason=reason, legacy=True).exists():
+            res.updated += 1
+            continue
+        LostCustomer.objects.create(date=d, phone=phone, name=_s(r.get("اسم و فامیل مشتری")), source=_s(r.get("نحوه آشنایی")),
+                                    service=_s(r.get("نوع خدمت")), gender_needed=_s(r.get("جنسیت نیرو")), reason=reason,
+                                    notes=" — ".join(x for x in (_s(r.get("توضیحات")), _s(r.get("شرح"))) if x), legacy=True,
+                                    customer=Customer.objects.filter(phone=phone).first() if phone else None)
+        res.created += 1
+
+
 IMPORTERS = [
+    ("مشتریان از دست رفته (شیت)", ("پشتیبان", "اسم و فامیل مشتری", "نحوه آشنایی", "وضعیت"), import_sheet_lost),
     ("گزارش مشتریان CRM", ("شماره همراه", "تعداد سفارش", "تاریخ اولین سفارش"), import_crm_customer_report),
     ("نیروهای CRM", ("کد پرسنلی", "شماره تلفن همراه", "نوع مار بیزینسی نیرو"), import_crm_workers),
     ("سفارشات CRM", ("کد پیگیری", "نام گروه", "تاریخ شروع", "نام مشتری"), import_crm_orders),
@@ -316,7 +337,8 @@ IMPORTERS = [
     ("شکایات متخصصان (شیت)", ("علت شکایت متخصص", "نام نیرو"), import_sheet_pro_complaints),
 ]
 # Specialists must exist before surveys/complaints can be linked to them.
-ORDER = ["گزارش مشتریان CRM", "نیروهای CRM", "متخصصین (شیت)", "سفارشات CRM", "نظرسنجی (شیت)", "شکایات از متخصصین (شیت)", "شکایات متخصصان (شیت)"]
+ORDER = ["گزارش مشتریان CRM", "نیروهای CRM", "متخصصین (شیت)", "سفارشات CRM", "نظرسنجی (شیت)", "شکایات از متخصصین (شیت)", "شکایات متخصصان (شیت)",
+         "مشتریان از دست رفته (شیت)"]
 
 
 def import_workbook(data: bytes) -> list[Result]:

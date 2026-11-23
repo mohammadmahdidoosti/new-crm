@@ -2,7 +2,8 @@
 from django.core.management.base import BaseCommand
 
 from crm.defaults import FINAL_DIALOGUE, FINAL_GROUP, GENERAL_GROUP
-from crm.models import CannedResponse, ChecklistItem, Rules, ServiceType
+from crm import defaults_v2 as V2
+from crm.models import CannedResponse, ChecklistItem, PenaltyType, RecurringTask, Rules, ServiceType
 
 CALL = [
     ("سلام، معرفی خود و شرکت", "کارشناس در ابتدای تماس سلام می‌کند و خود و سرویک را معرفی می‌کند."),
@@ -52,4 +53,30 @@ class Command(BaseCommand):
                                           text="سلام، درخواستتان ثبت شد. به محض وجود کار مناسب در محدوده‌ی شما، در اپلیکیشن برایتان ارسال می‌شود.")
             CannedResponse.objects.create(category="پشتیبانی اپلیکیشن", title="نمونه: ثبت شروع و پایان کار",
                                           text="سلام، برای ثبت شروع و پایان کار، وارد بخش «کارهای من» شوید و روی سفارش امروز دکمه‌ی شروع/پایان را بزنید.")
-        self.stdout.write(self.style.SUCCESS(f"defaults ready ({n} list items added)"))
+        rules = Rules.get()
+        if rules.seed_version < 2:
+            n += self.seed_v2()
+            rules.seed_version = 2
+            rules.save(update_fields=["seed_version"])
+        self.stdout.write(self.style.SUCCESS(f"defaults ready ({n} items added)"))
+
+    def seed_v2(self) -> int:
+        """Checklists per call type, penalties and recurring duties from Serviq's instructions."""
+        n = 0
+        CI = ChecklistItem
+        CI.objects.filter(kind=CI.CALL, title__in=V2.V1_TO_ORDER).update(group=V2.ORDER, call_kinds="order")
+        CI.objects.filter(kind=CI.CALL, title__in=V2.V1_RETIRE).update(active=False)
+        CI.objects.filter(kind=CI.CALL, title=V2.MEAL_OLD).update(title=V2.MEAL_TITLE, guide=V2.MEAL_GUIDE)
+        for i, (group, kinds, title, guide) in enumerate(V2.CHECKLISTS):
+            _, created = CI.objects.get_or_create(kind=CI.CALL, title=title,
+                                                  defaults={"group": group, "call_kinds": kinds, "guide": guide, "order": i})
+            n += created
+        for i, (title, amount, unit, note, faults) in enumerate(V2.PENALTIES):
+            _, created = PenaltyType.objects.get_or_create(title=title, defaults={"amount": amount, "unit": unit, "note": note,
+                                                                                 "fault_titles": faults, "order": i})
+            n += created
+        for i, (title, place, days, link) in enumerate(V2.TASKS):
+            _, created = RecurringTask.objects.get_or_create(title=title, defaults={"place": place, "weekdays": days,
+                                                                                   "link": link, "order": i})
+            n += created
+        return n

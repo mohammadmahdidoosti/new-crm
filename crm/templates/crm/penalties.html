@@ -1,0 +1,13 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>جریمه‌ها</h1></div>
+<div class="filters">{% for k,l in statuses %}<a href="?status={{k}}" class="{% if status == k %}on{% endif %}">{{ l }}</a>{% endfor %}<a href="?status=" class="{% if not status %}on{% endif %}">همه</a></div>
+<p class="muted small">جریمه‌ها بعد از احراز قصور در شکایت، طبق جدول جریمه‌ها پیشنهاد می‌شوند و فقط با تأیید سرپرست قطعی می‌شوند. اعمال در کیف پول نیرو همچنان در CRM قدیم انجام می‌شود.</p>
+{% for p in page %}<div class="card"><div class="top" style="margin:0"><h3>{{ p.specialist }} — {{ p.ptype }}</h3><span class="tag {% if p.status == 'approved' %}ok{% elif p.status == 'proposed' %}warn{% endif %}">{{ p.get_status_display }}</span></div>
+<p class="small muted">{{ p.created_at|jdate }} {% if p.complaint %}— <a href="{% url 'complaint_detail' p.complaint.pk %}">شکایت مرتبط</a>{% endif %} {% if p.ptype.note %}— {{ p.ptype.note }}{% endif %}</p>
+<form method="post" class="row">{% csrf_token %}<input type="hidden" name="id" value="{{ p.pk }}">
+<div style="max-width:160px"><label>مبلغ (تومان)</label><input name="amount" value="{{ p.amount }}"></div>
+<div style="flex:3"><label>توضیحات</label><input name="note" value="{{ p.note }}"></div>
+<button class="btn ok sm" name="status" value="approved">تأیید</button><button class="btn bad sm" name="status" value="cancelled">لغو/بخشش</button></form></div>
+{% empty %}<div class="card muted">موردی نیست.</div>{% endfor %}{% include "crm/_pager.html" %}
+{% endblock %}

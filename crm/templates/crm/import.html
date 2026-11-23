@@ -1,6 +1,6 @@
 {% extends "crm/base.html" %}{% load fa %}
 {% block content %}<div class="top"><h1>ورود داده از اکسل</h1></div>
-<div class="card form" style="max-width:760px"><p>فایل‌های قابل شناسایی: خروجی «نیروها»، «سفارشات» و «گزارشات مشتریان» از CRM فعلی، و برگه‌های «متخصصین»، «نظر سنجی»، «شکایات از متخصصین» و «شکایات متخصصان» از شیت عملیات (از گوگل‌شیت با File → Download → xlsx).
+<div class="card form" style="max-width:760px"><p>فایل‌های قابل شناسایی: خروجی «نیروها»، «سفارشات» و «گزارشات مشتریان» از CRM فعلی، و برگه‌های «متخصصین»، «نظر سنجی»، «شکایات از متخصصین»، «شکایات متخصصان» و «مشتریان از دست رفته» از شیت عملیات (از گوگل‌شیت با File → Download → xlsx).
 سیستم برگه‌ها را از روی ستون‌ها تشخیص می‌دهد. وارد کردن دوباره‌ی یک فایل، داده را تکراری نمی‌کند. شماره کارت و شبا وارد نمی‌شوند.</p>
 <form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button class="btn">وارد کن</button></form></div>
 {% if results %}<div class="card"><h2>نتیجه</h2><ul>{% for r in results %}<li>{{ r.line }}{% for e in r.errors %}<div class="score lo small">خطا: {{ e }}</div>{% endfor %}</li>{% endfor %}</ul></div>{% endif %}

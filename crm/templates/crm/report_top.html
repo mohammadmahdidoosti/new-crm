@@ -1,0 +1,8 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}<div class="top"><h1>متخصصان برتر ماه — {{ start|jdate }}</h1><span><a class="btn sec sm" href="?month={{ prev }}">ماه قبل</a> <a class="btn sec sm" href="?month={{ next }}">ماه بعد</a></span></div>
+<p class="muted small">امتیاز = کار آزاد × {{ r.top_w_free }} + کار مورد علاقه × {{ r.top_w_favorite }} + (میانگین نظرسنجی − ۴) × ۱۰ × {{ r.top_w_survey }} − شکایت تأییدشده × {{ r.top_w_complaint }}. وزن‌ها و جوایز در تنظیمات قابل تغییرند.</p>
+<div class="tbl"><table><tr><th>رتبه</th><th>متخصص</th><th>کار آزاد</th><th>کار مورد علاقه</th><th>میانگین نظرسنجی</th><th>شکایت</th><th>امتیاز</th><th>رشد</th><th>جایزه (تومان)</th></tr>
+{% for x in rows %}<tr><td>{{ x.rank|fanum }}</td><td>{{ x.specialist }}</td><td>{{ x.free|fanum }}</td><td>{{ x.fav|fanum }}</td><td>{{ x.avg|stars }} <span class="muted small">({{ x.n_surveys|fanum }})</span></td>
+<td>{{ x.complaints|fanum }}</td><td><b>{{ x.score|fanum }}</b></td><td>{{ x.growth|fanum }}</td>
+<td>{% if x.prize %}{{ x.prize|money }}{% endif %}{% if x.growth_prize %} <span class="tag ok">رشد: {{ x.growth_prize|money }}</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="9" class="muted">داده‌ای برای این ماه نیست.</td></tr>{% endfor %}</table></div>{% endblock %}

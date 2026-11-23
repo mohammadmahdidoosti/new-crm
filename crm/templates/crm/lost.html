@@ -1,0 +1,17 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>مشتریان از دست رفته</h1>
+<span class="stat" style="padding:6px 14px"><b style="font-size:18px">{% if coverage.rate != None %}{{ coverage.rate|fanum }}٪{% else %}-{% endif %}</b><span>نرخ پوشش سفارشات این ماه ({{ coverage.done|fanum }} انجام‌شده / {{ coverage.lost|fanum }} از دست رفته)</span></span></div>
+<div class="grid g2">
+<div class="card form"><h2>ثبت مورد جدید</h2><form method="post">{% csrf_token %}{{ form.date }}
+<div class="row"><div>{{ form.name.label_tag }}{{ form.name }}</div><div>{{ form.phone.label_tag }}{{ form.phone }}</div></div>
+<div class="row"><div>{{ form.reason.label_tag }}{{ form.reason }}{{ form.reason.errors }}</div><div>{{ form.service.label_tag }}{{ form.service }}</div></div>
+<div class="row"><div>{{ form.source.label_tag }}{{ form.source }}</div><div>{{ form.gender_needed.label_tag }}{{ form.gender_needed }}</div></div>
+{{ form.notes.label_tag }}{{ form.notes }}<p><button class="btn">ثبت</button></p></form></div>
+<div class="card"><h2>علت‌ها در این ماه</h2>{% for l,n in by_reason %}<div class="sugg"><span>{{ l }}</span><b>{{ n|fanum }}</b></div>{% empty %}<p class="muted">موردی نیست.</p>{% endfor %}</div>
+</div>
+<div class="filters"><a href="?" class="{% if not request.GET.reason %}on{% endif %}">همه</a>{% for k,l in reasons %}<a href="?reason={{k}}" class="{% if request.GET.reason == k %}on{% endif %}">{{ l }}</a>{% endfor %}</div>
+<div class="tbl"><table><tr><th>تاریخ</th><th>نام</th><th>موبایل</th><th>خدمت</th><th>علت</th><th>پشتیبان</th><th>توضیحات</th></tr>
+{% for l in page %}<tr><td>{{ l.date|jdate }}</td><td>{{ l.name }}</td><td>{{ l.phone }}</td><td>{{ l.service }}</td><td>{{ l.get_reason_display }}</td><td>{{ l.agent|default:"-" }}</td><td class="small">{{ l.notes|truncatechars:80 }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted">موردی نیست.</td></tr>{% endfor %}</table></div>{% include "crm/_pager.html" %}
+{% endblock %}

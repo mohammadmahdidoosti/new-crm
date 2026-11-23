@@ -3,6 +3,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from crm import views as v
+from crm import views_ops as o
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -32,5 +33,13 @@ urlpatterns = [
     path("tasks/", v.task_list, name="task_list"),
     path("availability/", v.availability, name="availability"),
     path("import/", v.import_view, name="import"),
+    path("settings/", o.settings_page, name="settings"),
+    path("today/", o.daily_board, name="daily_lists"),
+    path("lost/", o.lost_list, name="lost_list"),
+    path("penalties/", o.penalty_list, name="penalty_list"),
+    path("complaints/new/", o.complaint_new, name="complaint_new"),
+    path("reports/vip/", o.report_vip, name="report_vip"),
+    path("reports/vip/<int:pk>/", o.vip_apply, name="vip_apply"),
+    path("reports/top/", o.report_top, name="report_top"),
     path("api/ingest/call/", v.api_ingest_call, name="api_ingest_call"),
 ]

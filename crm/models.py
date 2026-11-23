@@ -56,6 +56,68 @@ class Rules(models.Model):
     ticket_sla_minutes = models.PositiveIntegerField("حداکثر زمان اولین پاسخ تیکت (دقیقه)", default=30)
     vip_min_score = models.DecimalField("حداقل امتیاز نیروی VIP", max_digits=3, decimal_places=2, default=4.7)
     capacity_shortage_hours = models.PositiveIntegerField("هشدار نیازمند نیرو اگر ساعت آزاد کمتر از", default=8)
+    # dispatch (سند شاخص‌های اولویت‌بندی پخش سفارشات)
+    dispatch_tiers = models.CharField("ترتیب اولویت پخش کار", max_length=300,
+                                      default="home_vip,first_order,churned,work_vip,common_vip,home,work,common,other",
+                                      help_text="کدها به ترتیب اولویت، با ویرگول")
+    churn_inactive_days = models.PositiveIntegerField("مشتری چرن‌شده: روزهای بدون سفارش", default=60)
+    churn_min_orders = models.PositiveSmallIntegerField("مشتری چرن‌شده: حداقل سفارش‌های قبلی", default=2)
+    churn_on_unhappy = models.BooleanField("مشتری با نارضایتی در آخرین نظرسنجی هم چرن‌شده/در خطر حساب شود", default=True)
+    first_order_min_score = models.DecimalField("حداقل امتیاز نیرو برای سفارش اول مشتری", max_digits=3, decimal_places=2, default=4.5)
+    temp_order_cancel_hours = models.PositiveIntegerField("سفارش موقت: اگر تا چند ساعت قبل نیرو نداشت لغو شود", default=24)
+    # VIP (سند دیالوگ متخصصین VIP)
+    vip_window = models.PositiveSmallIntegerField("VIP: تعداد آخرین سفارش‌های نظرسنجی‌شده", default=100)
+    vip_min_count = models.PositiveSmallIntegerField("VIP: حداقل تعداد نظرسنجی برای قضاوت", default=30)
+    vip_avg_min = models.DecimalField("VIP: حداقل میانگین امتیاز", max_digits=3, decimal_places=2, default=4.75)
+    vip_single_min = models.DecimalField("VIP: هیچ امتیازی کمتر از", max_digits=3, decimal_places=2, default=4)
+    # commission (دستورالعمل نیم‌بها)
+    commission_exclude_fixed_8h = models.BooleanField("سفارش‌های ثابت ۸ ساعته (دوره‌ای) مشمول نیم‌بها نیستند", default=True)
+    commission_count_customer_cancel = models.BooleanField("لغو مشتری بعد از تخصیص، روز کاری نیرو حساب شود", default=True)
+    # order dialogue
+    meal_min_hours = models.DecimalField("وعده غذا از چند ساعت", max_digits=3, decimal_places=1, default=6)
+    meal_inclusive = models.BooleanField("وعده غذا شامل خود همان ساعت هم می‌شود (۶ ساعت و بیشتر)", default=True)
+    # discipline (دستورالعمل انضباطی / جدول جریمه‌ها)
+    late_grace_minutes = models.PositiveSmallIntegerField("تأخیر مجاز (دقیقه)", default=15)
+    late_step_minutes = models.PositiveSmallIntegerField("جریمه تأخیر به ازای هر چند دقیقه", default=30)
+    late_step_amount = models.PositiveIntegerField("مبلغ جریمه هر پله تأخیر (تومان)", default=100000)
+    # call quality
+    banned_words = models.TextField("کلمات و عبارات ممنوع کارشناس", blank=True,
+                                    default="نمیشه، نمی‌شه، نمی‌تونیم، نمیتونیم، نمی‌تونم، نمیتونم، نداریم، نمی‌دونم، نمیدونم، باید صبر کنید، آره، هان، "
+                                            "اشتباه از شماست، مهندس، حاجی، آبجی، اوکی، اوکیه، حله، اجازه بدید از مسئولم پیگیری کنم، "
+                                            "همکارم اینو بهتون نگفته بود",
+                                    help_text="با ویرگول جدا کنید. در جمله‌های کارشناس به‌صورت دقیق جستجو می‌شوند.")
+    # top specialists of the month (سند متخصصان برتر ماه)
+    top_w_free = models.DecimalField("متخصص برتر: وزن هر کار آزاد", max_digits=5, decimal_places=2, default=1)
+    top_w_favorite = models.DecimalField("متخصص برتر: وزن هر کار مورد علاقه", max_digits=5, decimal_places=2, default=2)
+    top_w_survey = models.DecimalField("متخصص برتر: وزن میانگین نظرسنجی (به ازای هر ۰٫۱ بالای ۴)", max_digits=5, decimal_places=2, default=2)
+    top_w_complaint = models.DecimalField("متخصص برتر: کسر به ازای هر شکایت تأییدشده", max_digits=5, decimal_places=2, default=5)
+    top_prizes = models.CharField("جوایز ۱۰ نفر برتر (تومان)", max_length=200,
+                                  default="5000000,4000000,3000000,2000000,1500000,1000000,800000,700000,600000,500000")
+    top_growth_prize = models.PositiveIntegerField("جایزه بیشترین رشد (تومان)", default=1000000)
+    seed_version = models.PositiveSmallIntegerField(default=0, editable=False)
+
+    TIER_LABELS = {"home_vip": "منزل VIP", "first_order": "اولین سفارش مشتری", "churned": "مشتری چرن‌شده / ناراضی قبلی",
+                   "work_vip": "محل کار VIP", "common_vip": "مشاعات VIP", "home": "منزل عادی", "work": "محل کار عادی",
+                   "common": "مشاعات عادی", "other": "سایر خدمات"}
+
+    def tiers(self):
+        out = [t.strip() for t in self.dispatch_tiers.split(",") if t.strip() in self.TIER_LABELS]
+        return out + [t for t in self.TIER_LABELS if t not in out]
+
+    def banned_list(self):
+        import re as _re
+        return [w.strip() for w in _re.split(r"[,،\n]", self.banned_words or "") if w.strip()]
+
+    def meal_applies(self, hours) -> bool:
+        h = float(hours or 0)
+        return h >= float(self.meal_min_hours) if self.meal_inclusive else h > float(self.meal_min_hours)
+
+    def late_penalty(self, minutes: int) -> int:
+        over = int(minutes) - self.late_grace_minutes
+        if over <= 0:
+            return 0
+        steps = -(-int(minutes) // self.late_step_minutes)  # started steps of the whole delay
+        return steps * self.late_step_amount
 
     class Meta:
         verbose_name = verbose_name_plural = "قوانین و تنظیمات"
@@ -165,6 +227,13 @@ class Customer(TimeStamped):
     blocked_specialists = models.ManyToManyField("Specialist", blank=True, related_name="blocked_by", verbose_name="نیروهای لیست سیاه")
     notes = models.TextField("یادداشت", blank=True)
     legacy_id = models.CharField("شناسه در CRM قدیم", max_length=60, blank=True)
+    blocked = models.BooleanField("بلاک (ثبت سفارش ممنوع)", default=False)
+    block_reason = models.CharField("علت بلاک", max_length=200, blank=True)
+    debt = models.PositiveBigIntegerField("بدهی تسویه‌نشده (تومان)", default=0)
+    risky = models.BooleanField("اعزام نیرو مشکل‌ساز است", default=False,
+                                help_text="طبق سوابق، اعزام نیرو برای این مشتری احتمال مشکل دارد")
+    blocked_by_specialists = models.ManyToManyField("Specialist", blank=True, related_name="blocked_customers",
+                                                    verbose_name="متخصصینی که این مشتری را بلاک کرده‌اند")
     legacy_order_count = models.PositiveIntegerField("تعداد سفارش در CRM قدیم", default=0)
     legacy_first_order = models.DateField("اولین سفارش در CRM قدیم", null=True, blank=True)
     legacy_last_order = models.DateField("آخرین سفارش در CRM قدیم", null=True, blank=True)
@@ -277,6 +346,11 @@ class Order(TimeStamped):
                                    verbose_name="متخصص")
     price = models.PositiveBigIntegerField("مبلغ (ریال)", null=True, blank=True)
     closed_by_staff = models.BooleanField("پایان کار توسط کارشناس", default=False)
+    requested_specific = models.BooleanField("مشتری نیروی مشخصی خواسته (کار مورد علاقه)", default=False)
+    is_temporary = models.BooleanField("سفارش موقت", default=False)
+    cancelled_after_assign = models.BooleanField("لغو مشتری بعد از تخصیص نیرو", default=False)
+    worker_fault = models.BooleanField("انجام‌نشده به دلیل قصور یا غیبت نیرو", default=False)
+    late_minutes = models.PositiveSmallIntegerField("دقیقه تأخیر نیرو", default=0)
     is_periodic = models.BooleanField("دوره‌ای", default=False)
     cancel_reason = models.CharField("دلیل لغو", max_length=200, blank=True)
     notes = models.TextField("توضیحات", blank=True)
@@ -309,6 +383,10 @@ class Order(TimeStamped):
         if self.service.is_vip:
             p += 30
         return p
+
+    @property
+    def is_fixed_8h(self) -> bool:
+        return self.is_periodic and float(self.hours or 0) >= 8
 
     def priority_reasons(self):
         out = []
@@ -349,7 +427,10 @@ class Call(TimeStamped):
         ("survey", "نظرسنجی"),
         ("recall", "تماس مجدد با مشتری ناراضی"),
         ("pro_complaint", "شکایت متخصص"),
+        ("unhappy", "دریافت شکایت / نارضایتی مشتری"),
         ("new_customer", "مشتری جدید"),
+        ("periodic", "تأیید سفارش دوره‌ای"),
+        ("morning", "تماس صبحگاهی با متخصص"),
         ("satisfaction", "سنجش خشنودی"),
         ("other", "سایر"),
     ]
@@ -451,6 +532,15 @@ class Complaint(TimeStamped):
     agent = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="کارشناس پیگیری")
     auto_created = models.BooleanField("ایجاد خودکار", default=False)
     legacy = models.BooleanField("وارد شده از شیت", default=False)
+    source = models.CharField("منبع", max_length=10, choices=[("customer", "مشتری"), ("staff", "کارشناس عملیات")], default="customer")
+    specialist_statement = models.TextField("اظهارات متخصص (بدون قضاوت)", blank=True)
+    fault = models.CharField("نتیجه بررسی", max_length=12, blank=True,
+                             choices=[("", "در حال بررسی"), ("confirmed", "قصور متخصص احراز شد"), ("not", "قصوری احراز نشد")])
+    compensation_type = models.CharField("جبران برای مشتری", max_length=12, blank=True,
+                                         choices=[("", "-"), ("discount", "کد تخفیف"), ("reclean", "تجدید نظافت"), ("none", "توضیح قوانین")])
+    refer_retention = models.BooleanField("ارجاع به واحد نگهداشت", default=False)
+    source_call = models.ForeignKey("Call", on_delete=models.SET_NULL, null=True, blank=True, related_name="unhappy_complaints",
+                                    verbose_name="مکالمه‌ی ثبت شکایت")
 
     class Meta:
         verbose_name = "شکایت از متخصص"
@@ -551,3 +641,132 @@ class FollowUpTask(TimeStamped):
 
     def __str__(self):
         return self.title
+
+
+# ---------------------------------------------------------------- lost customers, penalties, daily work
+
+class LostCustomer(TimeStamped):
+    """Sheet «مشتریان از دست رفته»: requests that did not become an order (needed for the coverage rate)."""
+    REASONS = [("inquiry", "استعلام"), ("capacity", "عدم ظرفیت"), ("price", "هزینه بالا"), ("rejected", "رد سفارش"),
+               ("mismatch", "عدم تطابق نیرو"), ("restricted", "محدودیت ثبت سفارش"), ("conditions", "عدم پذیرش موارد هفت‌گانه"),
+               ("other", "سایر")]
+    date = models.DateField("تاریخ", default=timezone.localdate, db_index=True)
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="مشتری")
+    name = models.CharField("نام", max_length=200, blank=True)
+    phone = models.CharField("موبایل", max_length=20, blank=True)
+    source = models.CharField("نحوه آشنایی", max_length=80, blank=True)
+    service = models.CharField("نوع خدمت", max_length=120, blank=True)
+    gender_needed = models.CharField("جنسیت نیرو", max_length=10, blank=True)
+    reason = models.CharField("علت", max_length=12, choices=REASONS)
+    notes = models.TextField("توضیحات", blank=True)
+    agent = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="پشتیبان")
+    call = models.ForeignKey("Call", on_delete=models.SET_NULL, null=True, blank=True, verbose_name="مکالمه")
+    legacy = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "مشتری از دست رفته"
+        verbose_name_plural = "مشتریان از دست رفته"
+        ordering = ["-date", "-id"]
+
+    def save(self, *a, **kw):
+        self.phone = normalize_phone(self.phone)
+        super().save(*a, **kw)
+
+
+class PenaltyType(models.Model):
+    UNITS = [("fixed", "مبلغ ثابت"), ("late", "طبق قانون تأخیر"), ("order", "معادل هزینه سفارش"), ("other", "طبق توضیحات")]
+    title = models.CharField("مورد", max_length=200)
+    amount = models.PositiveIntegerField("مبلغ (تومان)", default=0)
+    unit = models.CharField("نوع محاسبه", max_length=8, choices=UNITS, default="fixed")
+    note = models.CharField("توضیحات", max_length=250, blank=True)
+    fault_titles = models.CharField("برای این علت‌های شکایت پیشنهاد شود", max_length=300, blank=True,
+                                    help_text="عنوان دلایل شکایت با ویرگول؛ مثلاً «تأخیر (متخصص)»")
+    active = models.BooleanField("فعال", default=True)
+    order = models.PositiveSmallIntegerField("ترتیب", default=0)
+
+    class Meta:
+        verbose_name = "نوع جریمه"
+        verbose_name_plural = "جدول جریمه‌ها"
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return self.title
+
+
+class Penalty(TimeStamped):
+    STATUSES = [("proposed", "پیشنهاد سیستم"), ("approved", "تأیید شد"), ("cancelled", "لغو / بخشش")]
+    specialist = models.ForeignKey(Specialist, on_delete=models.CASCADE, related_name="penalties", verbose_name="متخصص")
+    ptype = models.ForeignKey(PenaltyType, on_delete=models.PROTECT, verbose_name="نوع جریمه")
+    complaint = models.ForeignKey(Complaint, on_delete=models.SET_NULL, null=True, blank=True, related_name="penalties")
+    order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True)
+    amount = models.PositiveIntegerField("مبلغ (تومان)", default=0)
+    status = models.CharField("وضعیت", max_length=10, choices=STATUSES, default="proposed", db_index=True)
+    note = models.TextField("توضیحات", blank=True)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "جریمه"
+        verbose_name_plural = "جریمه‌ها"
+        ordering = ["-created_at"]
+
+
+class RecurringTask(models.Model):
+    """Recurring duties from the responsibility matrix (شرح مسئولیت‌ها)."""
+    DAYS = [(5, "شنبه"), (6, "یکشنبه"), (0, "دوشنبه"), (1, "سه‌شنبه"), (2, "چهارشنبه"), (3, "پنجشنبه"), (4, "جمعه")]
+    title = models.CharField("کار", max_length=250)
+    unit = models.CharField("واحد/زیرگروه", max_length=80, blank=True, default="عملیات - نظافت")
+    place = models.CharField("محل ثبت", max_length=120, blank=True)
+    weekdays = models.CharField("روزها", max_length=30, default="5,6,0,1,2,3,4",
+                                help_text="شماره روزها: شنبه=5، یکشنبه=6، دوشنبه=0، سه‌شنبه=1، چهارشنبه=2، پنجشنبه=3، جمعه=4")
+    link = models.CharField("صفحه مرتبط در سیستم", max_length=60, blank=True)
+    assignees = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, verbose_name="مسئولان")
+    active = models.BooleanField("فعال", default=True)
+    order = models.PositiveSmallIntegerField("ترتیب", default=0)
+
+    class Meta:
+        verbose_name = "کار تکراری"
+        verbose_name_plural = "کارهای تکراری (شرح وظایف)"
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return self.title
+
+    def due_on(self, d) -> bool:
+        return str(d.weekday()) in [x.strip() for x in self.weekdays.split(",")]
+
+
+class TaskDone(models.Model):
+    task = models.ForeignKey(RecurringTask, on_delete=models.CASCADE, related_name="done")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    date = models.DateField(db_index=True)
+    note = models.CharField(max_length=250, blank=True)
+    done_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("task", "user", "date")]
+
+
+class DailyCheck(TimeStamped):
+    """Result of a routine call: morning call to a specialist, periodic-order confirmation."""
+    KINDS = [("morning", "تماس صبحگاهی"), ("periodic", "تأیید سفارش دوره‌ای")]
+    RESULTS = {
+        "morning": [("on_time", "به‌موقع می‌رسد"), ("late", "با تأخیر می‌رسد"), ("cannot", "نمی‌تواند / خواب مانده"),
+                    ("no_answer", "پاسخ نداد"), ("replaced", "نیروی جایگزین هماهنگ شد")],
+        "periodic": [("confirmed", "سفارش پابرجاست"), ("cancel", "لغو سفارش"), ("reschedule", "تغییر زمان"),
+                     ("no_answer", "عدم پاسخگویی"), ("follow", "نیاز به پیگیری مجدد"), ("other", "سایر")],
+    }
+    kind = models.CharField(max_length=10, choices=KINDS)
+    date = models.DateField(db_index=True)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="checks")
+    result = models.CharField("نتیجه", max_length=12)
+    late_minutes = models.PositiveSmallIntegerField(default=0)
+    specialist_ok = models.CharField("رضایت از متخصص ثابت", max_length=10, blank=True,
+                                     choices=[("", "-"), ("yes", "راضی"), ("no", "ناراضی")])
+    note = models.CharField("توضیح", max_length=300, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        unique_together = [("kind", "order", "date")]
+
+    def result_label(self):
+        return dict(self.RESULTS.get(self.kind, [])).get(self.result, self.result)

@@ -1,0 +1,12 @@
+{% extends "crm/base.html" %}
+{% block content %}<div class="top"><h1>ثبت شکایت از متخصص</h1></div>
+<div class="card form" style="max-width:760px"><p class="muted">طبق فرآیند، علاوه بر شکایت مشتری، کارشناس عملیات هم می‌تواند نارضایتی خودش از متخصص را ثبت کند.</p>
+<form method="post">{% csrf_token %}
+<div class="row"><div><label>منبع</label><select name="source"><option value="customer">مشتری</option><option value="staff" selected>کارشناس عملیات</option></select></div>
+<div><label>متخصص</label><select name="specialist"><option value="">-</option>{% for s in specialists %}<option value="{{ s.pk }}">{{ s.name }}</option>{% endfor %}</select></div>
+<div><label>کد پیگیری سفارش (اختیاری)</label><input name="order_code"></div></div>
+<div class="row"><div><label>علت</label><select name="reason"><option value="">سایر</option>{% for r in reasons %}<option value="{{ r.pk }}">{{ r.title }}</option>{% endfor %}</select></div>
+<div><label>علت (اگر سایر)</label><input name="reason_text"></div></div>
+<label>شرح</label><textarea name="description" rows="4"></textarea>
+<label><input type="checkbox" name="refer_retention" value="1" style="width:auto"> ارجاع به واحد نگهداشت</label>
+<p><button class="btn">ثبت</button></p></form></div>{% endblock %}

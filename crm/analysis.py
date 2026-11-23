@@ -6,13 +6,15 @@ unconfirmed drafts; a person confirms them in the panel (semi-automatic).
 from __future__ import annotations
 
 import json
+import re
 import logging
 
 from django.db import transaction
 from django.utils import timezone
 
 from . import ai
-from .models import Call, ChecklistItem, SpecialistComplaint, Survey
+from .defaults_v2 import BANNED_TITLE, GENERAL
+from .models import Call, ChecklistItem, Complaint, DailyCheck, Rules, SpecialistComplaint, Survey
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +38,8 @@ COMMON_SCHEMA = """{
 EXTRACT = {
     "order": """"extracted": {"service": "نوع خدمت", "date": "تاریخ گفته‌شده", "time": "ساعت", "hours": عدد یا null,
   "address": "", "district": "", "gender_preference": "آقا|خانم|فرقی ندارد|null", "has_pets": true|false|null,
-  "special_requests": "", "price_quoted": "", "customer_name": ""}""",
+  "special_requests": "", "price_quoted": "", "customer_name": "", "order_registered": true|false,
+  "conditions_rejected": ["عنوان موارد دیالوگ نهایی که مشتری صریحاً نپذیرفت؛ اگر همه را پذیرفت یا مطرح نشد خالی"]}""",
     "survey": """"extracted": {"answered": true|false, "scores": {SURVEY_KEYS}, "result": "full|good|medium|unhappy|no_answer|unaware",
   "comment": "حرف‌های مشتری درباره‌ی نیرو و خدمت", "specialist_faults": ["فقط از فهرست: FAULTS"]}
 برای scores هر معیاری که مشتری نمره داد را ۱ تا ۵ بگذار و اگر نپرسید یا جواب نداد null.""",
@@ -47,6 +50,12 @@ EXTRACT = {
     "new_customer": """"extracted": {"customer_name": "", "service": "", "order_placed": true|false, "reason_not_ordered": "استعلام|هزینه بالا|عدم ظرفیت|عدم تطابق نیرو|رد سفارش|سایر|null",
   "follow_up_needed": true|false}""",
 }
+EXTRACT["unhappy"] = """"extracted": {"complaint_summary": "موضوع شکایت در یک جمله", "specialist_faults": ["فقط از فهرست: FAULTS"],
+  "customer_request": "", "followup_time_promised": "زمانی که برای اعلام نتیجه گفته شد، یا null"}"""
+EXTRACT["periodic"] = """"extracted": {"result": "confirmed|cancel|reschedule|no_answer|follow|other", "new_time": "اگر زمان عوض شد",
+  "specialist_ok": "yes|no|null", "specialist_feedback": "نظر مشتری درباره‌ی متخصص ثابت", "note": ""}"""
+EXTRACT["morning"] = """"extracted": {"result": "on_time|late|cannot|no_answer|replaced", "late_minutes": عدد یا 0,
+  "eta": "زمان تقریبی رسیدن", "note": ""}"""
 EXTRACT["satisfaction"] = EXTRACT["survey"]
 EXTRACT["other"] = '"extracted": {}'
 
@@ -59,6 +68,9 @@ def build_prompt(call: Call) -> str:
             group = c.group or "عمومی"
             lines.append(f"\n[{group}]")
         lines.append(f"- {c.title}" + (f": {c.guide}" if c.guide else ""))
+    rules = Rules.get()
+    meal = f"{rules.meal_min_hours:g} ساعت و بیشتر" if rules.meal_inclusive else f"بیشتر از {rules.meal_min_hours:g} ساعت"
+    lines = [ln.replace("{MEAL}", meal) for ln in lines]
     extract = EXTRACT.get(call.kind, '"extracted": {}')
     survey_keys = ", ".join(f'"{c.title}": 1-5|null' for c in ChecklistItem.of(ChecklistItem.SURVEY))
     faults = "، ".join(c.title for c in ChecklistItem.of(ChecklistItem.FAULT))
@@ -93,8 +105,35 @@ def _int(v, lo=1, hi=5):
     return x if lo <= x <= hi else None
 
 
+_FA_LETTER = r"[\u0600-\u06FF\u200c]"
+
+
+def agent_lines(transcript: str) -> list[str]:
+    return [ln.split(":", 1)[1] for ln in (transcript or "").splitlines() if ln.strip().startswith("کارشناس") and ":" in ln]
+
+
+def find_banned(transcript: str, words: list[str]) -> list[dict]:
+    """Exact search of banned words in the agent's lines only (no AI, so no cost and no guessing)."""
+    hits = []
+    lines = agent_lines(transcript)
+    for w in words:
+        pat = re.compile(rf"(?<!{_FA_LETTER}){re.escape(w)}(?!{_FA_LETTER})")
+        for ln in lines:
+            if pat.search(ln):
+                hits.append({"word": w, "line": ln.strip()[:160]})
+                break
+    return hits
+
+
 def apply_analysis(call: Call, data: dict) -> None:
     """Store scores on the call and create the unconfirmed drafts for the human to confirm."""
+    if call.kind != "other" and isinstance(data.get("checklist"), list):
+        hits = find_banned(call.transcript, Rules.get().banned_list())
+        data["banned"] = hits
+        data["checklist"] = [c for c in data["checklist"] if not (isinstance(c, dict) and c.get("item") == BANNED_TITLE)]
+        data["checklist"].append({"item": BANNED_TITLE, "group": GENERAL, "done": not hits,
+                                  "evidence": "، ".join(h["word"] for h in hits), "note": "بررسی خودکار" if not hits else
+                                  "کلمات ممنوع در جمله‌های کارشناس پیدا شد"})
     call.analysis = data
     items = [c for c in data.get("checklist") or [] if isinstance(c, dict) and c.get("done") is not None]
     credit = {True: 1.0, "partial": 0.5, False: 0.0}
@@ -111,6 +150,22 @@ def apply_analysis(call: Call, data: dict) -> None:
                    notes=ex.get("comment") or "", confirmed=False)
         s.compute_average()
         s.save()
+    if call.kind == "unhappy" and not call.unhappy_complaints.exists():
+        fault = ChecklistItem.objects.filter(kind=ChecklistItem.FAULT, title__in=ex.get("specialist_faults") or []).first()
+        Complaint.objects.create(customer=call.customer, specialist=call.specialist, order=call.order, reason=fault,
+                                 reason_text=fault.title if fault else (ex.get("complaint_summary") or "نارضایتی مشتری")[:200],
+                                 description=(ex.get("complaint_summary") or "") + ("\nدرخواست مشتری: " + ex["customer_request"]
+                                                                                   if ex.get("customer_request") else ""),
+                                 status="open", agent=call.agent, auto_created=True, source="customer", source_call=call)
+    if call.kind in ("periodic", "morning") and call.order_id and ex.get("result"):
+        valid = dict(DailyCheck.RESULTS[call.kind])
+        if ex["result"] in valid:
+            late = int(ex.get("late_minutes") or 0) if str(ex.get("late_minutes") or "0").isdigit() else 0
+            DailyCheck.objects.update_or_create(
+                kind=call.kind, order=call.order, date=timezone.localdate(call.created_at),
+                defaults={"result": ex["result"], "late_minutes": late, "user": call.agent,
+                          "specialist_ok": ex.get("specialist_ok") if ex.get("specialist_ok") in ("yes", "no") else "",
+                          "note": (ex.get("note") or ex.get("specialist_feedback") or "")[:300]})
     if call.kind == "pro_complaint" and not call.specialist_complaints.exists():
         reason = ChecklistItem.objects.filter(kind=ChecklistItem.PRO_COMPLAINT, title=ex.get("reason") or "").first()
         amount = ex.get("amount")

@@ -10,6 +10,10 @@
   <a class="stat" href="{% url 'pro_complaint_list' %}"><b>{{ open_pro_complaints|fanum }}</b><span>شکایت باز متخصصان</span></a>
   <a class="stat" href="{% url 'call_list' %}"><b>{{ calls_queue|fanum }}</b><span>وویس در صف پردازش</span></a>
   <a class="stat {% if calls_failed %}alert{% endif %}" href="{% url 'call_list' %}?status=failed"><b>{{ calls_failed|fanum }}</b><span>وویس با خطا</span></a>
+  <a class="stat {% if temp_due %}alert{% endif %}" href="{% url 'daily_lists' %}"><b>{{ temp_due|fanum }}</b><span>سفارش موقت در بازه‌ی لغو</span></a>
+  <a class="stat {% if proposed_penalties %}alert{% endif %}" href="{% url 'penalty_list' %}"><b>{{ proposed_penalties|fanum }}</b><span>جریمه منتظر تأیید</span></a>
+  <a class="stat" href="{% url 'lost_list' %}"><b>{% if coverage.rate != None %}{{ coverage.rate|fanum }}٪{% else %}-{% endif %}</b><span>نرخ پوشش سفارشات این ماه</span></a>
+  <a class="stat" href="{% url 'daily_lists' %}"><b>→</b><span>کارهای امروز من</span></a>
 </div>
 <div class="grid g2" style="margin-top:16px">
 <div class="card"><h2>ظرفیت امروز و فردا</h2>

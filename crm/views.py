@@ -18,8 +18,9 @@ from django.views.decorators.http import require_POST
 from . import analysis, rules
 from .forms import CallUploadForm, ImportForm, NewSurveyForm, OrderForm, TicketForm, survey_form_class
 from .importers import import_workbook
+from .views_ops import is_manager
 from .jalali import fmt_date, parse_date
-from .models import (Call, CannedResponse, ChecklistItem, Complaint, Customer, FollowUpTask, Order, Rules, Specialist,
+from .models import (Call, CannedResponse, ChecklistItem, Complaint, Customer, FollowUpTask, Order, Penalty, Rules, Specialist,
                      SpecialistComplaint, Survey, Ticket, TicketMessage, normalize_phone)
 
 
@@ -65,6 +66,9 @@ def dashboard(request):
         "overdue_tickets": sum(1 for t in Ticket.objects.filter(first_response_at__isnull=True).exclude(status="closed") if t.is_overdue),
         "my_tasks": FollowUpTask.objects.filter(done=False).filter(Q(assigned_to=request.user) | Q(assigned_to__isnull=True))[:8],
         "capacity_today": rules.capacity(today),
+        "temp_due": rules.temp_orders_due().count(),
+        "proposed_penalties": Penalty.objects.filter(status="proposed").count(),
+        "coverage": rules.coverage_rate(rules.month_start(today), today),
         "capacity_tomorrow": rules.capacity(today + dt.timedelta(days=1)),
     }
     return render(request, "crm/dashboard.html", ctx)
@@ -133,7 +137,7 @@ def call_detail(request, pk):
     checklist_groups = {}
     for it in data.get("checklist") or []:
         if isinstance(it, dict):
-            g = checklist_groups.setdefault(groups.get(it.get("item"), "سایر"), {"items": [], "got": 0.0, "n": 0})
+            g = checklist_groups.setdefault(it.get("group") or groups.get(it.get("item"), "سایر"), {"items": [], "got": 0.0, "n": 0})
             g["items"].append(it)
             if it.get("done") is not None:
                 g["n"] += 1
@@ -144,6 +148,9 @@ def call_detail(request, pk):
         "call": call, "a": data, "checklist_groups": checklist_groups, "ex": data.get("extracted") or {}, "survey": survey, "survey_form": survey_form,
         "pro_complaint": call.specialist_complaints.first(), "specialists": Specialist.objects.filter(active=True),
         "pro_reasons": ChecklistItem.of(ChecklistItem.PRO_COMPLAINT),
+        "rejected": (data.get("extracted") or {}).get("conditions_rejected") or [],
+        "not_registered": call.kind in ("order", "new_customer") and (data.get("extracted") or {}).get("order_registered") is False
+        or bool((data.get("extracted") or {}).get("order_placed") is False),
         "raw": analysis.dumps(data) if data else ""})
 
 
@@ -227,17 +234,32 @@ def order_new(request):
                    "gender_needed": {"آقا": "m", "خانم": "f"}.get(ex.get("gender_preference"), ""),
                    "notes": ex.get("special_requests", "")}
     form = OrderForm(request.POST or None, initial=initial)
+    problems = []
     if request.method == "POST" and form.is_valid():
-        o = form.save(commit=False)
-        o.customer = _find_customer(form.cleaned_data["customer_phone"], form.cleaned_data["customer_name"])
-        o.registered_by = request.user
-        o.save()
-        if call and not call.order:
-            call.order, call.customer = o, o.customer
-            call.save(update_fields=["order", "customer"])
-        messages.success(request, "سفارش ثبت شد.")
-        return redirect("dispatch")
-    return render(request, "crm/order_form.html", {"form": form, "call": call})
+        customer = _find_customer(form.cleaned_data["customer_phone"], form.cleaned_data["customer_name"])
+        if customer and form.cleaned_data.get("address") and not customer.address:
+            customer.address = form.cleaned_data["address"]
+            customer.save(update_fields=["address"])
+        wanted = form.cleaned_data.get("specialist")
+        problems = rules.order_restrictions(customer, wanted, call)
+        override = request.POST.get("override") and is_manager(request.user)
+        if problems and not override:
+            messages.error(request, "طبق دستورالعمل، ثبت این سفارش مجاز نیست. موارد را رفع کنید" +
+                           ("، یا به‌عنوان سرپرست با تیک «ثبت با تأیید سرپرست» ثبت کنید." if is_manager(request.user) else "."))
+        else:
+            o = form.save(commit=False)
+            o.customer = customer
+            o.registered_by = request.user
+            if wanted:
+                o.specialist, o.status, o.requested_specific = wanted, Order.ASSIGNED, True
+            o.save()
+            if call and not call.order:
+                call.order, call.customer = o, o.customer
+                call.save(update_fields=["order", "customer"])
+            messages.success(request, "سفارش ثبت شد.")
+            return redirect("dispatch")
+    return render(request, "crm/order_form.html", {"form": form, "call": call, "problems": problems,
+                                                   "is_manager": is_manager(request.user)})
 
 
 @login_required
@@ -304,16 +326,29 @@ def complaint_list(request):
 def complaint_detail(request, pk):
     c = get_object_or_404(Complaint.objects.select_related("customer", "specialist", "survey"), pk=pk)
     if request.method == "POST":
-        c.status = request.POST.get("status") or c.status
+        before = c.fault
+        for f in ("status", "fault", "compensation_type"):
+            v = request.POST.get(f)
+            if v is not None and v in dict(c._meta.get_field(f).choices):
+                setattr(c, f, v)
         c.resolution = request.POST.get("resolution", c.resolution)
-        amt = request.POST.get("compensation")
-        c.compensation = int(amt) if amt and amt.isdigit() else c.compensation
+        c.specialist_statement = request.POST.get("specialist_statement", c.specialist_statement)
+        c.refer_retention = bool(request.POST.get("refer_retention"))
+        amt = (request.POST.get("compensation") or "").replace(",", "")
+        c.compensation = int(amt) if amt.isdigit() else c.compensation
         c.save()
         if c.status == "resolved":
             c.tasks.update(done=True)
-        messages.success(request, "شکایت به‌روز شد.")
+        msg = "شکایت به‌روز شد."
+        if c.fault == "confirmed" and before != "confirmed":
+            made = rules.propose_penalties(c)
+            if made:
+                msg += f" {len(made)} جریمه پیشنهاد شد و منتظر تأیید سرپرست است."
+        messages.success(request, msg)
         return redirect("complaint_detail", pk)
-    return render(request, "crm/complaint_detail.html", {"c": c, "statuses": Complaint.STATUSES})
+    return render(request, "crm/complaint_detail.html", {
+        "c": c, "statuses": Complaint.STATUSES, "faults": Complaint._meta.get_field("fault").choices,
+        "comps": Complaint._meta.get_field("compensation_type").choices, "penalties": c.penalties.select_related("ptype")})
 
 
 @login_required
@@ -401,6 +436,7 @@ def report_commission(request):
     start = rules.week_start(d)
     return render(request, "crm/report_commission.html", {
         "rows": rules.weekly_commission(start), "start": start, "end": start + dt.timedelta(days=6),
+        "thu": rules.thursday_groups(start),
         "prev": fmt_date(start - dt.timedelta(days=7)), "next": fmt_date(start + dt.timedelta(days=7)), "r": Rules.get()})
 
 

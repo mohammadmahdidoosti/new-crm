@@ -1,12 +1,12 @@
 {% extends "crm/base.html" %}{% load fa %}
 {% block content %}
 <div class="top"><h1>پخش کار</h1><span class="filters" style="margin:0"><a href="?days=1" class="{% if days == 1 %}on{% endif %}">امروز و فردا</a><a href="?days=2" class="{% if days == 2 %}on{% endif %}">۲ روز</a><a href="?days=7" class="{% if days == 7 %}on{% endif %}">۷ روز</a></span></div>
-<p class="muted">ترتیب بر اساس اولویت است: سفارش اول مشتری، مشتری وفادار، VIP، و بعد زودترین زمان. پیشنهادها فقط پیشنهادند؛ انتخاب با شماست.</p>
+<p class="muted">ترتیب طبق «شاخص‌های اولویت‌بندی پخش سفارشات» (قابل تغییر در تنظیمات)، و در هر سطح زودترین سفارش اول. در انتخاب نیرو اول کیفیت و تطابق، و در آخر نزدیکی جغرافیایی سنجیده می‌شود. پیشنهادها فقط پیشنهادند؛ انتخاب با شماست.</p>
 {% for q in queue %}{% with o=q.order %}
 <div class="card"><div class="top" style="margin:0"><h2>{{ o.customer.name }} — {{ o.service }}</h2>
-<span>{% for r in o.priority_reasons %}<span class="tag warn">{{ r }}</span> {% endfor %}<b>{{ o.start|jdt }}</b> ({{ o.hours|floatformat:0|fanum }} ساعت)</span></div>
+<span><span class="tag warn">اولویت {{ o.tier_rank|fanum }}: {{ o.tier_label }}</span> {% for f in o.flags %}<span class="tag">{{ f }}</span> {% endfor %}{% if o.must_cancel %}<span class="tag bad">کمتر از ۲۴ ساعت مانده</span> {% endif %}<b>{{ o.start|jdt }}</b> ({{ o.hours|floatformat:0|fanum }} ساعت)</span></div>
 <p class="muted small">{{ o.district }} {{ o.address|truncatechars:90 }} {% if o.gender_needed %}— نیروی {{ o.get_gender_needed_display }}{% endif %}{% if o.has_pets %} — حیوان خانگی{% endif %}</p>
-{% for s in q.suggestions %}<div class="sugg"><span><b>{{ s.specialist.name }}</b> <span class="muted small">{{ s.why|join:" · " }}</span></span>
+{% for s in q.suggestions %}<div class="sugg"><span><b>{{ s.specialist.name }}</b> {% if s.half_price %}<span class="tag ok">نیم‌بها</span> {% endif %}<span class="muted small">{{ s.why|join:" · " }}</span></span>
 <form method="post" action="{% url 'assign' o.pk %}">{% csrf_token %}<input type="hidden" name="specialist" value="{{ s.specialist.pk }}"><button class="btn sm">تخصیص</button></form></div>
 {% empty %}<p class="score lo">نیروی مناسب آزاد پیدا نشد — نیازمند نیرو.</p>{% endfor %}</div>
 {% endwith %}{% empty %}<div class="card muted">سفارش بدون نیرویی در این بازه نیست.</div>{% endfor %}

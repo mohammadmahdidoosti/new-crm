@@ -2,10 +2,15 @@
 {% block content %}
 <div class="top"><h1>کمیسیون نیم‌بها — هفته {{ start|jdate }} تا {{ end|jdate }}</h1>
 <span><a class="btn sec sm" href="?week={{ prev }}">هفته قبل</a> <a class="btn sec sm" href="?week={{ next }}">هفته بعد</a></span></div>
-<p class="muted">قانون فعلی (قابل تغییر در تنظیمات): از روز کاری {{ r.commission_bonus_from_day|fanum }}ام هفته به بعد، پورسانت × {{ r.commission_bonus_factor }}. فقط سفارش‌های «انجام شد» شمرده می‌شوند.</p>
+<p class="muted">طبق دستورالعمل: از روز کاری {{ r.commission_bonus_from_day|fanum }}ام هفته به بعد، پورسانت × {{ r.commission_bonus_factor }} (۲۰٪ ← ۱۰٪).
+{% if r.commission_count_customer_cancel %}لغو مشتری بعد از تخصیص، روز کاری حساب می‌شود؛ {% endif %}لغو به دلیل قصور یا غیبت نیرو حساب نمی‌شود{% if r.commission_exclude_fixed_8h %}؛ سفارش‌های ثابت ۸ ساعته مشمول نیم‌بها نیستند{% endif %}.</p>
+<div class="card"><h2>فهرست پنجشنبه (از کارکرد شنبه تا چهارشنبه)</h2><div class="grid g3">
+<div><h3>پنجشنبه و جمعه</h3>{% for sp,n in thu.both %}<div>{{ sp }} <span class="muted small">({{ n|fanum }} روز)</span></div>{% empty %}<p class="muted">-</p>{% endfor %}</div>
+<div><h3>فقط جمعه</h3>{% for sp,n in thu.friday %}<div>{{ sp }} <span class="muted small">({{ n|fanum }} روز + پنجشنبه)</span></div>{% empty %}<p class="muted">-</p>{% endfor %}</div>
+<div><h3>اگر پنجشنبه کار کند، جمعه</h3>{% for sp,n in thu.if_thursday %}<div>{{ sp }} <span class="muted small">({{ n|fanum }} روز)</span></div>{% empty %}<p class="muted">-</p>{% endfor %}</div></div></div>
 <div class="tbl"><table><tr><th>متخصص</th><th>روزهای کاری</th><th>وضعیت</th><th>روزهای نیم‌بها</th><th>سفارش‌های نیم‌بها</th><th>تخفیف پورسانت (ریال)</th></tr>
 {% for row in rows %}<tr><td>{{ row.specialist }}</td><td>{{ row.day_count|fanum }}</td>
 <td>{% if row.eligible %}<span class="tag ok">مشمول</span>{% else %}<span class="tag">{{ row.needs|fanum }} روز دیگر</span>{% endif %}</td>
-<td>{% for d in row.bonus_days %}{{ d|jdate }} {% endfor %}</td><td>{{ row.bonus_orders|length|fanum }}</td><td>{{ row.saving_rial|money }}</td></tr>
+<td>{% for d in row.bonus_days %}{{ d|jdate }} {% endfor %}</td><td>{{ row.bonus_orders|length|fanum }}{% if row.excluded_fixed %} <span class="muted small">(+{{ row.excluded_fixed|fanum }} ثابت ۸ ساعته، مستثنی)</span>{% endif %}</td><td>{{ row.saving_rial|money }}</td></tr>
 {% empty %}<tr><td colspan="6" class="muted">در این هفته سفارش انجام‌شده‌ای ثبت نشده.</td></tr>{% endfor %}</table></div>
 {% endblock %}

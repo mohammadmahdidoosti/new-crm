@@ -1,0 +1,34 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>تنظیمات</h1></div>
+<div class="filters">{% for k,l in tabs %}<a href="?tab={{k}}" class="{% if tab == k %}on{% endif %}">{{ l }}</a>{% endfor %}</div>
+{% if tab == "rules" %}
+<form method="post" class="form">{% csrf_token %}{{ form.non_field_errors }}
+{% for title, fields in groups %}<div class="card"><h2>{{ title }}</h2><div class="grid g3">
+{% for f in fields %}<div>{% if f.field.widget.input_type == "checkbox" %}<label>{{ f }} {{ f.label }}</label>{% else %}{{ f.label_tag }}{{ f }}{% endif %}
+{% if f.help_text %}<div class="helptext">{{ f.help_text }}</div>{% endif %}{{ f.errors }}</div>{% endfor %}</div></div>{% endfor %}
+<button class="btn">ذخیره قوانین</button></form>
+{% elif tab == "dispatch" %}
+<div class="card form" style="max-width:640px"><p class="muted">سفارش‌ها اول بر اساس این ترتیب و بعد بر اساس زمان شروع مرتب می‌شوند (طبق «گزارش شاخص‌های اولویت‌بندی پخش سفارشات»).</p>
+<form method="post">{% csrf_token %}{% for t in tiers %}<div class="row" style="margin-bottom:6px"><div style="flex:0 0 90px"><b>اولویت {{ forloop.counter|fanum }}</b></div>
+<div><select name="t{{ forloop.counter0 }}">{% for k,l in labels %}<option value="{{k}}" {% if k == t %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div></div>{% endfor %}
+<button class="btn">ذخیره ترتیب</button></form></div>
+{% elif tab == "users" %}
+<div class="card"><p class="muted">ساخت کاربر جدید، رمز و نقش (کارشناس، سرپرست، مدیر…) در <a href="{% url 'admin:auth_user_add' %}">پنل فنی ← کاربران</a> انجام می‌شود. بعد در تب «کارهای تکراری» کارها را به هر کارشناس وصل کنید.</p>
+<table><tr><th>نام کاربری</th><th>نام نمایشی</th><th>نقش</th><th>فعال</th><th></th></tr>
+{% for u in users %}<tr><td>{{ u.username }}</td><td>{{ u.profile.display_name|default:"-" }}</td><td>{{ u.profile.get_role_display|default:"-" }}</td><td>{{ u.is_active|yesno:"بله,خیر" }}</td>
+<td><a href="{% url 'admin:auth_user_change' u.pk %}">ویرایش</a></td></tr>{% endfor %}</table></div>
+{% else %}
+{% if tab == "call" %}<div class="filters"><a href="?tab=call" class="{% if not group %}on{% endif %}">همه گروه‌ها</a>{% for g in groups_list %}{% if g %}<a href="?tab=call&group={{ g|urlencode }}" class="{% if group == g %}on{% endif %}">{{ g }}</a>{% endif %}{% endfor %}</div>
+<p class="muted small">«راهنما» همان متنی است که تحلیل‌گر هوش مصنوعی برای قضاوت می‌خواند؛ دقیق و با مثال بنویسید. برای حذف، تیک «فعال» را بردارید. ردیف‌های خالی پایین برای افزودن است.</p>{% endif %}
+{% if tab == "penalties" %}<p class="muted small">«برای این علت‌های شکایت» یعنی وقتی قصور متخصص در شکایتی با این علت تأیید شد، این جریمه پیشنهاد شود. نوع «طبق قانون تأخیر» مبلغ را از تب قوانین حساب می‌کند.</p>{% endif %}
+{% if tab == "tasks" %}<p class="muted small">هر کار در روزهای انتخاب‌شده در «کارهای امروز من» مسئولانش ظاهر می‌شود. اگر مسئولی انتخاب نشود، برای همه نمایش داده می‌شود.</p>{% endif %}
+<form method="post" class="form">{% csrf_token %}{{ fs.management_form }}{{ fs.non_form_errors }}
+{% for f in fs %}<div class="card">{{ f.id }}{% if f.errors %}<div class="msg error">{{ f.errors }}</div>{% endif %}<div class="grid g3">
+{% for field in f.visible_fields %}<div {% if field.name == "guide" or field.name == "text" or field.name == "assignees" or field.name == "kinds" or field.name == "days" %}style="grid-column:1/-1"{% endif %}>
+{% if field.field.widget.input_type == "checkbox" and field.name != "kinds" and field.name != "days" and field.name != "assignees" %}<label>{{ field }} {{ field.label }}</label>{% else %}{{ field.label_tag }}{{ field }}{% endif %}</div>{% endfor %}
+</div></div>{% endfor %}
+<button class="btn">ذخیره</button></form>
+{% endif %}
+<style>.form [id$="-kinds"],.form [id$="-days"],.form [id$="-assignees"]{display:flex;flex-wrap:wrap;gap:2px 18px}.form [id$="-kinds"] label,.form [id$="-days"] label,.form [id$="-assignees"] label{display:inline-flex;gap:4px;align-items:center;color:inherit;font-size:13px;margin:0}.form input[type=checkbox]{width:auto}</style>
+{% endblock %}

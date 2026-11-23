@@ -18,12 +18,17 @@ from .models import Call, ChecklistItem, Complaint, DailyCheck, Rules, Specialis
 
 log = logging.getLogger(__name__)
 
+AUTO_NOTE = "نوع تماس خودکار تشخیص داده شد"
+
 SYSTEM = """تو ارزیاب کیفیت مکالمات تیم پشتیبانی «سرویک» هستی؛ شرکتی که نیروی نظافت (منزل، مشاعات، محل کار) اعزام می‌کند.
 متن پیاده‌شده‌ی یک تماس تلفنی را می‌گیری و فقط یک شیء JSON معتبر برمی‌گردانی، بدون هیچ متن دیگری.
 منصف و دقیق باش؛ فقط بر اساس چیزی که در متن هست قضاوت کن و برای هر قضاوت جمله‌ی شاهد کوتاه از متن بیاور.
 برای هر مورد چک‌لیست سخت‌گیر باش: done=true فقط وقتی همه‌ی اجزای آن مورد انجام شده؛ اگر بخشی انجام شده و بخشی نه
 (مثلاً سلام کرد ولی نام شرکت را نگفت) مقدار "partial" بگذار و در note بگو چه چیزی جا افتاد؛ اگر انجام نشد false.
-اگر موردی در این نوع تماس موضوعیت ندارد مقدار done را null بگذار. همه‌ی متن‌ها فارسی باشد."""
+اگر موردی در این نوع تماس موضوعیت ندارد مقدار done را null بگذار. همه‌ی متن‌ها فارسی باشد.
+خط‌هایی که با «سیستم:» شروع می‌شوند پیام خودکار تلفن‌اند و جزو صحبت کارشناس حساب نمی‌شوند.
+اگر در این تماس سفارش تازه‌ای ثبت نشد (مثلاً مشتری فقط برای پیگیری یا اطمینان از سفارشی که قبلاً ثبت شده زنگ زد)،
+همه‌ی موارد گروه «دیالوگ نهایی هماهنگی سفارش» را null بگذار، چون آن دیالوگ هنگام ثبت سفارش گفته می‌شود."""
 
 COMMON_SCHEMA = """{
   "summary": "خلاصه‌ی دو تا چهار جمله‌ای تماس",
@@ -87,8 +92,9 @@ def build_prompt(call: Call) -> str:
                    + (f"، مبلغ {o.price:,} ریال" if o.price else "")
                    + (f"، متخصص {o.specialist.get_gender_display()}" if o.specialist else
                       (f"، نیروی {o.get_gender_needed_display()}" if o.gender_needed else "")))
-    if call.note:
-        ctx.append(f"یادداشت کارشناس: {call.note}")
+    note = "\n".join(ln for ln in (call.note or "").splitlines() if not ln.startswith(AUTO_NOTE))
+    if note.strip():
+        ctx.append(f"یادداشت کارشناس: {note}")
     return (f"نوع تماس: {call.get_kind_display()}\n" + ("\n".join(ctx) + "\n" if ctx else "") +
             "\nچک‌لیست رفتار کارشناس در این نوع تماس (برای checklist همه‌ی موارد را به همین ترتیب بیاور و عنوان‌ها را دقیقاً همین‌طور بنویس؛"
             " اگر شرط یک مورد برقرار نیست، مثلاً سفارش کوتاه‌تر از حد یا نیروی آقا، done را null بگذار و در note بگو چرا):\n"
@@ -193,7 +199,7 @@ def classify(call: Call) -> float:
     data, cost = ai.ask_json(CLASSIFY_SYSTEM, call.transcript[:6000])
     kind = data.get("kind")
     call.kind = kind if kind in dict(Call.KINDS) and kind != "auto" else "other"
-    call.note = (call.note + "\n" if call.note else "") + f"نوع تماس خودکار تشخیص داده شد: {data.get('reason', '')}"
+    call.note = (call.note + "\n" if call.note else "") + f"{AUTO_NOTE}: {data.get('reason', '')}"
     call.save(update_fields=["kind", "note"])
     return cost
 

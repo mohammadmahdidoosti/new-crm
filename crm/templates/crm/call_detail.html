@@ -60,7 +60,7 @@
   {% if pro_complaint and not pro_complaint.confirmed %}
   <div class="card form"><h2>شکایت متخصص — منتظر تأیید</h2>
   <form method="post" action="{% url 'call_action' call.pk %}">{% csrf_token %}<input type="hidden" name="action" value="confirm_pro_complaint">
-  <label>علت</label><select name="reason"><option value="">{{ pro_complaint.reason_text|default:"-" }}</option>{% for r in pro_reasons %}<option value="{{ r.pk }}" {% if pro_complaint.reason_id == r.pk %}selected{% endif %}>{{ r.title }}</option>{% endfor %}</select>
+  <label>علت</label><select name="reason"><option value="">{% if pro_complaint.reason_id %}-{% else %}{{ pro_complaint.reason_text|default:"-" }}{% endif %}</option>{% for r in pro_reasons %}<option value="{{ r.pk }}" {% if pro_complaint.reason_id == r.pk %}selected{% endif %}>{{ r.title }}</option>{% endfor %}</select>
   <label>شرح</label><textarea name="description" rows="4">{{ pro_complaint.description }}</textarea>
   {% if ex.requested_action %}<p class="muted">درخواست متخصص: {{ ex.requested_action }}</p>{% endif %}
   <p><button class="btn ok">تأیید و ثبت</button></p></form></div>

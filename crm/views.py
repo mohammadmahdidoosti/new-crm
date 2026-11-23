@@ -91,7 +91,7 @@ def call_list(request):
 
 @login_required
 def call_upload(request):
-    form = CallUploadForm(request.POST or None, request.FILES or None, initial=request.GET.dict())
+    form = CallUploadForm(request.POST or None, request.FILES or None, initial={"kind": "auto", **request.GET.dict()})
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
         customer = _find_customer(d["customer_phone"])
@@ -522,7 +522,7 @@ def api_ingest_call(request):
     f = request.FILES.get("audio")
     if not f:
         return JsonResponse({"error": "audio missing"}, status=400)
-    kind = request.POST.get("kind") or "other"
+    kind = request.POST.get("kind") or "auto"
     if kind not in dict(Call.KINDS):
         kind = "other"
     from django.contrib.auth import get_user_model

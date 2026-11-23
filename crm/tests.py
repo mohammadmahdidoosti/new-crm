@@ -394,3 +394,17 @@ class PhaseATests(TestCase):
         apply_analysis(c3, {"checklist": [{"item": "x", "done": True}], "extracted": {"conditions_rejected": ["آماده بودن وسایل نظافتی"]}})
         self.assertEqual(c3.analysis["banned"][0]["word"], "حله")
         self.assertTrue(any("نپذیرفته" in p for p in rules.order_restrictions(self.cust, None, c3)))
+
+
+@override_settings(OPENROUTER_API_KEY="test-key", MEDIA_ROOT=tempfile.mkdtemp())
+class AutoKindTests(TestCase):
+    def test_auto_kind_is_classified_then_analyzed(self):
+        call_command("seed_defaults", verbosity=0)
+        call = Call.objects.create(kind="auto", audio=SimpleUploadedFile("a.ogg", tiny_audio(), "audio/ogg"))
+        answers = iter(["کارشناس: سلام، برای نظرسنجی تماس گرفتم", '{"kind": "survey", "reason": "نظرسنجی"}',
+                        '{"summary": "x", "checklist": [], "tone": {"score": 4}, "advice": {}, "extracted": {"answered": false}}'])
+        with mock.patch("crm.ai.requests.post", side_effect=lambda *a, **k: FakeResp(next(answers))):
+            call_command("run_worker", once=True)
+        call.refresh_from_db()
+        self.assertEqual((call.kind, call.status), ("survey", "done"))
+        self.assertIn("خودکار", call.note)

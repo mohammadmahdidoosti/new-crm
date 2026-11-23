@@ -423,6 +423,7 @@ class Availability(models.Model):
 
 class Call(TimeStamped):
     KINDS = [
+        ("auto", "تشخیص خودکار نوع تماس"),
         ("order", "ثبت سفارش / مشاوره مشتری"),
         ("survey", "نظرسنجی"),
         ("recall", "تماس مجدد با مشتری ناراضی"),

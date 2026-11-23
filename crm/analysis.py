@@ -175,6 +175,29 @@ def apply_analysis(call: Call, data: dict) -> None:
             amount=int(amount) if isinstance(amount, (int, float)) and amount > 0 else None, agent=call.agent, confirmed=False)
 
 
+CLASSIFY_SYSTEM = """نوع یک تماس تلفنی شرکت خدمات نظافت «سرویک» را از روی متنش تشخیص بده. فقط JSON برگردان:
+{"kind": "یکی از کدها", "reason": "یک جمله"}
+کدها:
+order = مشتری برای ثبت سفارش یا پرسیدن قیمت و شرایط تماس گرفته یا کارشناس سفارش ثبت می‌کند
+survey = کارشناس بعد از انجام کار، از مشتری درباره‌ی کیفیت کار و نیرو نظر و نمره می‌پرسد
+unhappy = مشتری از کیفیت کار یا نیرو گلایه و شکایت می‌کند
+recall = کارشناس درباره‌ی شکایت قبلی مشتری دوباره تماس گرفته و نتیجه‌ی پیگیری را می‌گوید
+pro_complaint = نیروی نظافت (متخصص) از مشتری یا شرکت گلایه یا درخواست دارد
+morning = کارشناس صبح با نیرو تماس می‌گیرد تا از حضور و حرکتش به سمت محل کار مطمئن شود
+periodic = کارشناس برای تأیید نوبت بعدی سفارش دوره‌ای با مشتری تماس گرفته
+new_customer = تماس با مشتری جدیدی که ثبت‌نام کرده ولی سفارش نداده
+other = هیچ‌کدام"""
+
+
+def classify(call: Call) -> float:
+    data, cost = ai.ask_json(CLASSIFY_SYSTEM, call.transcript[:6000])
+    kind = data.get("kind")
+    call.kind = kind if kind in dict(Call.KINDS) and kind != "auto" else "other"
+    call.note = (call.note + "\n" if call.note else "") + f"نوع تماس خودکار تشخیص داده شد: {data.get('reason', '')}"
+    call.save(update_fields=["kind", "note"])
+    return cost
+
+
 def process_call(call: Call) -> None:
     """Full pipeline for one call. Raises on failure; the worker records the error."""
     if not call.transcript:
@@ -189,6 +212,8 @@ def process_call(call: Call) -> None:
         call.save(update_fields=["transcript", "ai_cost"])
     call.status = "analyzing"
     call.save(update_fields=["status"])
+    if call.kind == "auto":
+        call.ai_cost += _dec(classify(call))
     data, cost = ai.ask_json(SYSTEM, build_prompt(call))
     with transaction.atomic():
         call.ai_cost += _dec(cost)

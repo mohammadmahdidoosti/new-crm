@@ -21,7 +21,7 @@ class MultiFileField(forms.FileField):
 
 
 class CallUploadForm(forms.Form):
-    kind = forms.ChoiceField(label="نوع مکالمه", choices=Call.KINDS)
+    kind = forms.ChoiceField(label="نوع مکالمه", choices=Call.KINDS, initial="auto")
     files = MultiFileField(label="فایل(های) صوتی")
     customer_phone = forms.CharField(label="موبایل مشتری", required=False)
     specialist_phone = forms.CharField(label="موبایل یا نام متخصص", required=False)

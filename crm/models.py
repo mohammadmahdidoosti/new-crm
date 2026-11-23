@@ -454,6 +454,7 @@ class Call(TimeStamped):
     transcript = models.TextField("متن مکالمه", blank=True)
     analysis = models.JSONField("تحلیل", default=dict, blank=True)
     ai_cost = models.DecimalField("هزینه هوش مصنوعی (دلار)", max_digits=8, decimal_places=5, default=0)
+    usage = models.JSONField("ریز مصرف هوش مصنوعی", default=list, blank=True)
     checklist_score = models.DecimalField("نمره چک‌لیست (از ۱۰۰)", max_digits=5, decimal_places=1, null=True, blank=True)
     tone_score = models.PositiveSmallIntegerField("نمره لحن (۱-۵)", null=True, blank=True)
     advice_score = models.PositiveSmallIntegerField("نمره مشاوره (۱-۵)", null=True, blank=True)

@@ -22,7 +22,8 @@ AUTO_NOTE = "نوع تماس خودکار تشخیص داده شد"
 
 SYSTEM = """تو ارزیاب کیفیت مکالمات تیم پشتیبانی «سرویک» هستی؛ شرکتی که نیروی نظافت (منزل، مشاعات، محل کار) اعزام می‌کند.
 متن پیاده‌شده‌ی یک تماس تلفنی را می‌گیری و فقط یک شیء JSON معتبر برمی‌گردانی، بدون هیچ متن دیگری.
-منصف و دقیق باش؛ فقط بر اساس چیزی که در متن هست قضاوت کن و برای هر قضاوت جمله‌ی شاهد کوتاه از متن بیاور.
+منصف و دقیق باش؛ فقط بر اساس چیزی که در متن هست قضاوت کن.
+برای evidence فقط یک تکه‌ی کوتاه از متن (حداکثر ۱۲ کلمه) بیاور و note را در یک جمله‌ی کوتاه بنویس؛ اگر مورد موضوعیت ندارد evidence را خالی بگذار.
 برای هر مورد چک‌لیست سخت‌گیر باش: done=true فقط وقتی همه‌ی اجزای آن مورد انجام شده؛ اگر بخشی انجام شده و بخشی نه
 (مثلاً سلام کرد ولی نام شرکت را نگفت) مقدار "partial" بگذار و در note بگو چه چیزی جا افتاد؛ اگر انجام نشد false.
 اگر موردی در این نوع تماس موضوعیت ندارد مقدار done را null بگذار. همه‌ی متن‌ها فارسی باشد.
@@ -32,8 +33,8 @@ SYSTEM = """تو ارزیاب کیفیت مکالمات تیم پشتیبانی 
 
 COMMON_SCHEMA = """{
   "summary": "خلاصه‌ی دو تا چهار جمله‌ای تماس",
-  "checklist": [{"item": "عنوان دقیق مورد از فهرست", "done": true|"partial"|false|null, "evidence": "نقل کوتاه", "note": "توضیح کوتاه"}],
-  "tone": {"score": 1-5, "note": "ارزیابی لحن و برخورد کارشناس", "issues": ["جمله‌ها یا رفتارهای نامناسب، اگر بود"]},
+  "checklist": [{"item": "عنوان دقیق مورد از فهرست", "done": true|"partial"|false|null, "evidence": "حداکثر ۱۲ کلمه از متن", "note": "یک جمله"}],
+  "tone": {"score": 1-5, "note": "ارزیابی لحن و برخورد کارشناس", "issues": ["حداکثر ۳ جمله‌ی نامناسب کارشناس، کوتاه؛ اگر نبود خالی"]},
   "advice": {"score": 1-5 یا null, "note": "کیفیت مشاوره و راهنمایی مشتری"},
   "other_party_sentiment": "positive|neutral|negative",
   "suggested_actions": ["اقدام پیشنهادی بعدی"],
@@ -196,11 +197,11 @@ other = هیچ‌کدام"""
 
 
 def classify(call: Call) -> float:
-    data, cost = ai.ask_json(CLASSIFY_SYSTEM, call.transcript[:6000])
+    data, cost = ai.ask_json(CLASSIFY_SYSTEM, call.transcript[:6000], log=call.usage, step="classify")
     kind = data.get("kind")
     call.kind = kind if kind in dict(Call.KINDS) and kind != "auto" else "other"
     call.note = (call.note + "\n" if call.note else "") + f"{AUTO_NOTE}: {data.get('reason', '')}"
-    call.save(update_fields=["kind", "note"])
+    call.save(update_fields=["kind", "note", "usage"])
     return cost
 
 
@@ -212,15 +213,15 @@ def process_call(call: Call) -> None:
         call.status = "transcribing"
         call.save(update_fields=["status"])
         with call.audio.open("rb") as f:
-            text, cost = ai.transcribe(f.read())
+            text, cost = ai.transcribe(f.read(), log=call.usage)
         call.transcript = text
         call.ai_cost += _dec(cost)
-        call.save(update_fields=["transcript", "ai_cost"])
+        call.save(update_fields=["transcript", "ai_cost", "usage"])
     call.status = "analyzing"
     call.save(update_fields=["status"])
     if call.kind == "auto":
         call.ai_cost += _dec(classify(call))
-    data, cost = ai.ask_json(SYSTEM, build_prompt(call))
+    data, cost = ai.ask_json(SYSTEM, build_prompt(call), log=call.usage)
     with transaction.atomic():
         call.ai_cost += _dec(cost)
         apply_analysis(call, data)

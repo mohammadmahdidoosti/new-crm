@@ -102,6 +102,8 @@ LOGOUT_REDIRECT_URL = "login"
 OPENROUTER_API_KEY = env("OPENROUTER_API_KEY")
 TRANSCRIBE_MODEL = env("TRANSCRIBE_MODEL", "google/gemini-2.5-flash")
 ANALYZE_MODEL = env("ANALYZE_MODEL", "google/gemini-2.5-flash")
+TRANSCRIBE_SPEED = float(env("TRANSCRIBE_SPEED", "1.0"))  # >1 plays voices faster before transcription (cheaper)
+TRANSCRIBE_TRIM = env("TRANSCRIBE_TRIM", "1") not in ("0", "false", "False")  # drop long pauses before transcription
 # Token for the office-side uploader that pushes VoIP recordings (empty = endpoint disabled).
 INGEST_TOKEN = env("INGEST_TOKEN")
 

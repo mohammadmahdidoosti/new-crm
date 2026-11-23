@@ -408,3 +408,41 @@ class AutoKindTests(TestCase):
         call.refresh_from_db()
         self.assertEqual((call.kind, call.status), ("survey", "done"))
         self.assertIn("خودکار", call.note)
+
+
+@override_settings(OPENROUTER_API_KEY="test-key", MEDIA_ROOT=tempfile.mkdtemp(),
+                   STORAGES={"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+                             "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
+class CostTests(TestCase):
+    def test_usage_logged_per_step_and_thinking_off_for_voice(self):
+        call_command("seed_defaults", verbosity=0)
+        call = Call.objects.create(kind="auto", audio=SimpleUploadedFile("a.ogg", tiny_audio(), "audio/ogg"))
+        answers = iter(["کارشناس: سلام", '{"kind": "other", "reason": "-"}', '{"summary": "x", "checklist": []}'])
+        bodies = []
+
+        def post(url, json=None, **kw):
+            bodies.append(json)
+            return FakeResp(next(answers))
+        with mock.patch("crm.ai.requests.post", side_effect=post):
+            call_command("run_worker", once=True)
+        call.refresh_from_db()
+        self.assertEqual([u["step"] for u in call.usage], ["transcribe", "classify", "analyze"])
+        self.assertEqual(bodies[0]["reasoning"], {"enabled": False})
+        self.assertIn("seconds", call.usage[0])
+
+    def test_lab_page_and_compare(self):
+        from crm import lab
+        self.assertGreater(lab.similarity("کارشناس: قیمت ۱۲۰۰ هزار", "کارشناس: قیمت ۱۲۰۰ هزار تومان"), 80)
+        self.assertEqual(lab.numbers("پلاک ۱۰ و ۰۹۱۲"), {"10", "0912"})
+        from django.contrib.auth.models import User
+        u = User.objects.create_superuser("boss", "", "x")
+        self.client.force_login(u)
+        call = Call.objects.create(kind="order", transcript="کارشناس: قیمت ۱۶۰۰", status="done",
+                                   usage=[{"step": "transcribe", "cost": 0.01, "seconds": 60}])
+        lab.save({str(call.pk): {"lite": {"text": "کارشناس: قیمت ۱۶۰۰", "cost": 0.003, "usage": {"seconds": 60}}}})
+        r = self.client.get(reverse("lab"))
+        self.assertContains(r, "Flash-Lite")
+        self.assertContains(r, "100٪")
+        r = self.client.post(reverse("lab"), {"calls": str(call.pk), "action": "reprocess"})
+        call.refresh_from_db()
+        self.assertEqual(call.status, "done")  # no audio, so not reprocessed

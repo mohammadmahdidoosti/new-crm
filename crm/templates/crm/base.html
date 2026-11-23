@@ -34,6 +34,7 @@
   <a href="{% url 'report_agents' %}" class="{% if u == 'report_agents' %}on{% endif %}">کارنامه کارشناسان</a>
   <a href="{% url 'import' %}" class="{% if u == 'import' %}on{% endif %}">ورود داده از اکسل</a>
   <a href="{% url 'settings' %}" class="{% if u == 'settings' %}on{% endif %}">تنظیمات</a>
+  <a href="{% url 'lab' %}" class="{% if u == 'lab' %}on{% endif %}">آزمایش هزینه</a>
   <a href="{% url 'admin:index' %}">داده‌ها (پنل فنی)</a>
   <form method="post" action="{% url 'logout' %}" style="padding:12px 20px">{% csrf_token %}<button class="btn sec sm">خروج ({{ request.user.get_username }})</button></form>
 </nav>

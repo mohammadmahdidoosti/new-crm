@@ -375,3 +375,75 @@ def vip_apply(request, pk):
     sp.save(update_fields=["worker_type", "updated_at"])
     messages.success(request, f"نوع {sp} به «{sp.get_worker_type_display()}» تغییر کرد. در CRM قدیم هم اعمال کنید.")
     return redirect("report_vip")
+
+
+# ---------------------------------------------------------------- cost lab
+@login_required
+@manager_required
+def lab_page(request):
+    """Compare cheaper transcription settings on real voices, and fully reprocess test calls."""
+    import subprocess
+    import sys
+    from django.conf import settings as dj
+    from . import lab
+    from .analysis import AUTO_NOTE
+    from .management.commands.audio_lab import parse_ids
+
+    if request.method == "POST":
+        ids = parse_ids(request.POST.get("calls", ""))
+        if not ids:
+            messages.error(request, "شماره‌ی تماس‌ها را وارد کنید، مثلاً 2-11")
+        elif request.POST.get("action") == "run":
+            log = open(lab.lab_dir() / "log.txt", "a", encoding="utf-8")
+            subprocess.Popen([sys.executable, "manage.py", "audio_lab", "--calls", ",".join(map(str, ids))],
+                             cwd=str(dj.BASE_DIR), stdout=log, stderr=log, start_new_session=True)
+            messages.success(request, "مقایسه شروع شد؛ چند دقیقه بعد این صفحه را دوباره باز کنید.")
+        elif request.POST.get("action") == "reprocess":
+            n = 0
+            for c in Call.objects.filter(pk__in=ids).exclude(audio=""):
+                c.note = "\n".join(ln for ln in c.note.splitlines() if not ln.startswith(AUTO_NOTE))
+                c.transcript, c.analysis, c.usage, c.ai_cost = "", {}, [], 0
+                c.kind, c.status, c.attempts, c.error = "auto", "queued", 0, ""
+                c.save()
+                n += 1
+            messages.success(request, f"{n} تماس از صفر (متن، تشخیص نوع و تحلیل) دوباره در صف رفت.")
+        return redirect("lab")
+
+    data = lab.load()
+    rows, sums = [], {k: {"cost": 0.0, "sec": 0.0, "sim": [], "miss": 0, "n": 0} for k in ["base", *lab.VARIANTS]}
+    for cid in sorted(data, key=int):
+        call = Call.objects.filter(pk=int(cid)).first()
+        if not call:
+            continue
+        base = next((u for u in reversed(call.usage or []) if u.get("step") == "transcribe"), None)
+        base_nums = lab.numbers(call.transcript)
+        row = {"call": call, "base": base, "variants": []}
+        if base:
+            s = sums["base"]
+            s["cost"] += base.get("cost", 0); s["sec"] += base.get("seconds", 0); s["n"] += 1
+        for key, meta in lab.VARIANTS.items():
+            r = data[cid].get(key)
+            if not r:
+                continue
+            item = {"key": key, "label": meta["label"], **r}
+            if "text" in r and call.transcript:
+                item["sim"] = lab.similarity(call.transcript, r["text"])
+                item["missed"] = sorted(base_nums - lab.numbers(r["text"]))
+                s = sums[key]
+                s["cost"] += r.get("cost", 0); s["sec"] += (r.get("usage") or {}).get("seconds", 0)
+                s["sim"].append(item["sim"]); s["miss"] += len(item["missed"]); s["n"] += 1
+            row["variants"].append(item)
+        rows.append(row)
+    summary = []
+    for key, s in sums.items():
+        if not s["n"]:
+            continue
+        summary.append({"label": "فعلی (Flash، سرعت عادی)" if key == "base" else lab.VARIANTS[key]["label"],
+                        "n": s["n"], "cost": s["cost"], "per_call": s["cost"] / s["n"], "minutes": s["sec"] / 60,
+                        "sim": round(sum(s["sim"]) / len(s["sim"])) if s["sim"] else None,
+                        "miss": s["miss"] if key != "base" else None})
+    log_tail = ""
+    lp = lab.lab_dir() / "log.txt"
+    if lp.exists():
+        log_tail = "\n".join(lp.read_text(encoding="utf-8").splitlines()[-8:])
+    return render(request, "crm/lab.html", {"rows": rows, "summary": summary, "log_tail": log_tail})

@@ -85,7 +85,9 @@
   <form method="post" action="{% url 'call_action' call.pk %}" style="margin-bottom:12px">{% csrf_token %}<input type="hidden" name="action" value="retry">
   <button class="btn sec sm">تحلیل دوباره (با قوانین و چک‌لیست فعلی)</button></form>{% endif %}
   {% if call.transcript %}<div class="card"><h2>متن مکالمه</h2><div class="transcript"><pre>{{ call.transcript }}</pre></div>
-  <p class="muted small">هزینه پردازش: {{ call.ai_cost }} دلار</p></div>{% endif %}
+  <p class="muted small">هزینه پردازش: {{ call.ai_cost }} دلار</p>
+  {% if call.usage %}<details class="small muted"><summary>ریز مصرف</summary><table dir="ltr"><tr><th>step</th><th>model</th><th>audio s</th><th>prompt</th><th>output</th><th>thinking</th><th>$</th></tr>
+  {% for u in call.usage %}<tr><td>{{ u.step }}</td><td>{{ u.model }}</td><td>{{ u.seconds|default:"" }}</td><td>{{ u.prompt }}</td><td>{{ u.completion }}</td><td>{{ u.reasoning }}</td><td>{{ u.cost|floatformat:5 }}</td></tr>{% endfor %}</table></details>{% endif %}</div>{% endif %}
 </div>
 </div>
 {% endblock %}

@@ -34,6 +34,7 @@ urlpatterns = [
     path("availability/", v.availability, name="availability"),
     path("import/", v.import_view, name="import"),
     path("settings/", o.settings_page, name="settings"),
+    path("lab/", o.lab_page, name="lab"),
     path("today/", o.daily_board, name="daily_lists"),
     path("lost/", o.lost_list, name="lost_list"),
     path("penalties/", o.penalty_list, name="penalty_list"),

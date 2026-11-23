@@ -36,16 +36,48 @@ def _key() -> str:
     return key
 
 
-def to_mp3(data: bytes) -> bytes:
+def to_mp3(data: bytes, speed: float = 1.0, trim: bool = True) -> bytes:
+    """Mono 16 kHz mp3. trim drops pauses longer than 0.6 s (keeping 0.25 s so turns stay apart); speed > 1 plays the
+    voice faster. The model bills audio per second, so both make the call cheaper."""
+    filters = []
+    if trim:
+        filters.append("silenceremove=stop_periods=-1:stop_duration=0.6:stop_threshold=-40dB:stop_silence=0.25")
+    if speed and abs(speed - 1.0) > 0.01:
+        filters.append(f"atempo={speed:g}")
     with tempfile.TemporaryDirectory() as t:
         src, dst = Path(t) / "in", Path(t) / "out.mp3"
         src.write_bytes(data)
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-ac", "1", "-ar", "16000", "-b:a", "48k", str(dst)],
-                       check=True, timeout=300)
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src)]
+        if filters:
+            cmd += ["-af", ",".join(filters)]
+        subprocess.run(cmd + ["-ac", "1", "-ar", "16000", "-b:a", "48k", str(dst)], check=True, timeout=300)
         return dst.read_bytes()
 
 
-def _chat(body: dict, title: str, post=None) -> tuple[str, float]:
+def seconds(data: bytes) -> float:
+    """Length of an audio file in seconds (0 if ffprobe cannot tell)."""
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(data)
+        f.flush()
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f.name],
+                           capture_output=True, text=True, timeout=60)
+    try:
+        return round(float(r.stdout.strip()), 1)
+    except ValueError:
+        return 0.0
+
+
+def _usage(j: dict, model: str) -> dict:
+    u = j.get("usage") or {}
+    pd, cd = u.get("prompt_tokens_details") or {}, u.get("completion_tokens_details") or {}
+    return {"model": j.get("model") or model, "prompt": u.get("prompt_tokens") or 0,
+            "audio": pd.get("audio_tokens") or 0, "cached": pd.get("cached_tokens") or 0,
+            "completion": u.get("completion_tokens") or 0, "reasoning": cd.get("reasoning_tokens") or 0,
+            "cost": float(u.get("cost") or 0)}
+
+
+def _chat(body: dict, title: str, post=None, log: list | None = None, step: str = "") -> tuple[str, float]:
+    """One OpenRouter request. If log is given, a token/cost breakdown of the request is appended to it."""
     post = post or requests.post
     r = post(OPENROUTER, json=body, timeout=300,
              headers={"Authorization": f"Bearer {_key()}", "X-Title": title})
@@ -56,15 +88,29 @@ def _chat(body: dict, title: str, post=None) -> tuple[str, float]:
     if "error" in j:
         raise AIError(str(j["error"])[:300])
     txt = ((j.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-    return txt.strip(), float((j.get("usage") or {}).get("cost") or 0)
+    usage = _usage(j, body.get("model", ""))
+    if log is not None:
+        log.append({"step": step or title, **usage})
+    return txt.strip(), usage["cost"]
 
 
-def transcribe(data: bytes, post=None) -> tuple[str, float]:
-    mp3 = to_mp3(data)
-    body = {"model": settings.TRANSCRIBE_MODEL, "temperature": 0, "max_tokens": 8000, "usage": {"include": True},
+def transcribe(data: bytes, post=None, log: list | None = None, model: str | None = None,
+               speed: float | None = None, trim: bool | None = None) -> tuple[str, float]:
+    speed = settings.TRANSCRIBE_SPEED if speed is None else speed
+    trim = settings.TRANSCRIBE_TRIM if trim is None else trim
+    mp3 = to_mp3(data, speed=speed, trim=trim)
+    body = {"model": model or settings.TRANSCRIBE_MODEL, "temperature": 0, "max_tokens": 8000, "usage": {"include": True},
+            # writing down speech needs no "thinking"; thinking tokens are billed as output
+            "reasoning": {"enabled": False},
             "messages": [{"role": "user", "content": [
                 {"type": "text", "text": ASK_TRANSCRIBE},
                 {"type": "input_audio", "input_audio": {"data": base64.b64encode(mp3).decode(), "format": "mp3"}}]}]}
+    if log is not None:
+        before = len(log)
+        text, cost = _chat(body, "Serviq CRM voice", post=post, log=log, step="transcribe")
+        if len(log) > before:
+            log[-1].update({"seconds": seconds(mp3), "speed": speed, "trim": trim})
+        return text, cost
     return _chat(body, "Serviq CRM voice", post=post)
 
 
@@ -79,11 +125,11 @@ def _parse_json(text: str) -> dict:
     return json.loads(t[start:end + 1])
 
 
-def ask_json(system: str, user: str, post=None) -> tuple[dict, float]:
+def ask_json(system: str, user: str, post=None, log: list | None = None, step: str = "analyze") -> tuple[dict, float]:
     body = {"model": settings.ANALYZE_MODEL, "temperature": 0.1, "max_tokens": 4000, "usage": {"include": True},
             "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
-    text, cost = _chat(body, "Serviq CRM analysis", post=post)
+    text, cost = _chat(body, "Serviq CRM analysis", post=post, log=log, step=step)
     return _parse_json(text), cost
 
 

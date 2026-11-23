@@ -1,0 +1,21 @@
+{% extends "crm/base.html" %}{% load fa %}
+{% block content %}
+<div class="top"><h1>آزمایش هزینه‌ی تبدیل صدا به متن</h1></div>
+<p class="muted small">همان وویس‌ها با تنظیمات ارزان‌تر به متن تبدیل می‌شوند و کنار متن فعلی گذاشته می‌شوند. این صفحه هیچ تماسی را تغییر نمی‌دهد، مگر دکمه‌ی «پردازش کامل دوباره».</p>
+<div class="card"><form method="post" class="row">{% csrf_token %}
+<div style="max-width:220px"><label>شماره‌ی تماس‌ها (مثلاً 2-11 یا 2,5,7)</label><input name="calls" dir="ltr"></div>
+<button class="btn" name="action" value="run">شروع مقایسه</button>
+<button class="btn sec" name="action" value="reprocess" onclick="return confirm('متن، نوع و تحلیل این تماس‌ها از صفر ساخته می‌شود. ادامه؟')">پردازش کامل دوباره با تنظیمات فعلی</button>
+</form>{% if log_tail %}<pre class="small muted" dir="ltr" style="white-space:pre-wrap">{{ log_tail }}</pre>{% endif %}</div>
+
+{% if summary %}<div class="card"><h2>خلاصه</h2><table><tr><th>روش</th><th>تعداد</th><th>دقیقه‌ی صدا</th><th>هزینه‌ی کل (دلار)</th><th>هر تماس (دلار)</th><th>شباهت به متن فعلی</th><th>عددهای جاافتاده</th></tr>
+{% for s in summary %}<tr><td>{{ s.label }}</td><td>{{ s.n }}</td><td>{{ s.minutes|floatformat:1 }}</td><td dir="ltr">{{ s.cost|floatformat:5 }}</td><td dir="ltr">{{ s.per_call|floatformat:5 }}</td><td>{% if s.sim is not None %}{{ s.sim }}٪{% else %}—{% endif %}</td><td>{% if s.miss is not None %}{{ s.miss }}{% else %}—{% endif %}</td></tr>{% endfor %}</table>
+<p class="muted small">«شباهت» درصد کلماتی است که با همان ترتیب در هر دو متن آمده؛ «عددهای جاافتاده» عددهای دو رقمی به بالا (قیمت، شماره، پلاک) است که در متن فعلی بود و در متن ارزان‌تر نیامد.</p></div>{% endif %}
+
+{% for r in rows %}<div class="card"><div class="top" style="margin:0"><h3><a href="{% url 'call_detail' r.call.pk %}">تماس #{{ r.call.pk|fanum }}</a> — {{ r.call.get_kind_display }}</h3>
+<span class="small muted" dir="ltr">{% if r.base %}now: ${{ r.base.cost|floatformat:5 }} · {{ r.base.seconds }}s{% endif %}</span></div>
+{% for v in r.variants %}<details><summary>{{ v.label }} — {% if v.error %}<span class="tag bad">خطا: {{ v.error }}</span>{% else %}<span dir="ltr">${{ v.cost|floatformat:5 }} · {{ v.usage.seconds }}s</span> — شباهت {{ v.sim }}٪{% if v.missed %} — عدد جاافتاده: <span dir="ltr">{{ v.missed|join:", " }}</span>{% endif %}{% endif %}</summary>
+<div class="row" style="align-items:flex-start"><div style="flex:1"><h4>متن فعلی</h4><div class="transcript"><pre>{{ r.call.transcript }}</pre></div></div>
+<div style="flex:1"><h4>{{ v.label }}</h4><div class="transcript"><pre>{{ v.text }}</pre></div></div></div></details>{% endfor %}
+</div>{% empty %}<div class="card muted">هنوز مقایسه‌ای اجرا نشده.</div>{% endfor %}
+{% endblock %}

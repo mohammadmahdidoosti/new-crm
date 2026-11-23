@@ -446,3 +446,14 @@ class CostTests(TestCase):
         r = self.client.post(reverse("lab"), {"calls": str(call.pk), "action": "reprocess"})
         call.refresh_from_db()
         self.assertEqual(call.status, "done")  # no audio, so not reprocessed
+
+
+class TranscriptShapeTests(TestCase):
+    def test_label_alone_on_its_line_is_joined(self):
+        from crm.ai import normalize_transcript
+        from crm.analysis import find_banned
+        raw = "سیستم:\nمکالمات شما ضبط می‌گردد.\nکارشناس:\nآره حله.\nادامه‌ی حرف\n**طرف مقابل:** باشه"
+        t = normalize_transcript(raw)
+        self.assertEqual(t.splitlines(), ["سیستم: مکالمات شما ضبط می‌گردد.", "کارشناس: آره حله. ادامه‌ی حرف",
+                                          "طرف مقابل: باشه"])
+        self.assertEqual({h["word"] for h in find_banned(t, ["آره", "حله", "باشه"])}, {"آره", "حله"})

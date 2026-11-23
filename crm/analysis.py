@@ -217,8 +217,9 @@ def process_call(call: Call) -> None:
         call.transcript = text
         call.ai_cost += _dec(cost)
         call.save(update_fields=["transcript", "ai_cost", "usage"])
+    call.transcript = ai.normalize_transcript(call.transcript)
     call.status = "analyzing"
-    call.save(update_fields=["status"])
+    call.save(update_fields=["status", "transcript"])
     if call.kind == "auto":
         call.ai_cost += _dec(classify(call))
     data, cost = ai.ask_json(SYSTEM, build_prompt(call), log=call.usage)

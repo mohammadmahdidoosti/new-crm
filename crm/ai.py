@@ -19,7 +19,7 @@ OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
 ASK_TRANSCRIBE = (
     "این یک مکالمه‌ی تلفنیِ فارسی بین کارشناس پشتیبانی یک شرکت خدمات نظافت و یک مشتری یا یک نیروی نظافت است. "
     "فقط متنِ دقیقِ همان چیزی را که گفته می‌شود بنویس، با نقطه‌گذاریِ درست. هر نوبت صحبت را در یک خط جدا با برچسب "
-    "«کارشناس:» یا «طرف مقابل:» بنویس. پیام‌های ضبط‌شده‌ی خودکار تلفن (مثل «مکالمات شما ضبط می‌گردد» یا «در صف انتظار هستید») "
+    "«کارشناس:» یا «طرف مقابل:» بنویس؛ برچسب و حرف همان نوبت در یک خط باشند. پیام‌های ضبط‌شده‌ی خودکار تلفن (مثل «مکالمات شما ضبط می‌گردد» یا «در صف انتظار هستید») "
     "را با برچسب «سیستم:» بنویس، نه کارشناس. زمان (مثل ۰۱:۲۳) ننویس. "
     "چیزی اضافه یا خلاصه نکن و جواب نده؛ اگر بخشی نامفهوم است، [نامفهوم] بنویس."
 )
@@ -110,8 +110,31 @@ def transcribe(data: bytes, post=None, log: list | None = None, model: str | Non
         text, cost = _chat(body, "Serviq CRM voice", post=post, log=log, step="transcribe")
         if len(log) > before:
             log[-1].update({"seconds": seconds(mp3), "speed": speed, "trim": trim})
-        return text, cost
-    return _chat(body, "Serviq CRM voice", post=post)
+        return normalize_transcript(text), cost
+    text, cost = _chat(body, "Serviq CRM voice", post=post)
+    return normalize_transcript(text), cost
+
+
+LABELS = ("کارشناس", "طرف مقابل", "سیستم")
+_LABEL = re.compile(r"^\s*\**\s*(کارشناس|طرف مقابل|سیستم)\s*\**\s*[:：]\s*\**\s*(.*)$")
+
+
+def normalize_transcript(text: str) -> str:
+    """One turn per line as «label: words». Models sometimes put the label alone on a line with the words below it,
+    or continue a turn on unlabelled lines; both would hide the agent's words from the banned-word check."""
+    turns: list[list[str]] = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = _LABEL.match(line)
+        if m:
+            turns.append([m.group(1), m.group(2).strip()])
+        elif turns:
+            turns[-1][1] = (turns[-1][1] + " " + line).strip()
+        else:
+            turns.append(["", line])
+    return "\n".join(f"{who}: {words}" if who else words for who, words in turns if words or who)
 
 
 def _parse_json(text: str) -> dict:
